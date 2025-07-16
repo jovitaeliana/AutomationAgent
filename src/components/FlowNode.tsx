@@ -1,4 +1,6 @@
 import React, { useEffect, useRef } from 'react';
+import ConnectionPort from './ConnectionPort';
+import { DragHandleIcon } from './Icons';
 
 export interface FlowNodeData {
   id: string;
@@ -14,54 +16,47 @@ interface FlowNodeProps {
   onMove: (nodeId: string, position: { x: number; y: number }) => void;
   onConfigure: (nodeId: string) => void;
   onDelete: (nodeId: string) => void;
-  onStartLinking: (e: React.MouseEvent, nodeId: string) => void;
+  onPortMouseDown: (e: React.MouseEvent, nodeId: string) => void;
+  onPortMouseUp: (e: React.MouseEvent, nodeId: string) => void;
 }
 
-const FlowNode: React.FC<FlowNodeProps> = ({ node, isSelected, onSelect, onMove, onConfigure, onDelete, onStartLinking }) => {
+const FlowNode: React.FC<FlowNodeProps> = ({ node, isSelected, onSelect, onMove, onConfigure, onDelete, onPortMouseDown, onPortMouseUp }) => {
   const selectedClasses = "border-primary ring-2 ring-primary/30";
-  const ref = useRef<HTMLDivElement>(null);
+  const dragHandleRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    const nodeEl = ref.current;
-    if (!nodeEl) return;
-
+    const handleEl = dragHandleRef.current;
+    if (!handleEl) return;
     const handleMouseDown = (e: MouseEvent) => {
-      if ((e.target as HTMLElement).closest('button')) return;
       e.preventDefault();
-
       const startPos = { x: e.clientX, y: e.clientY };
       const startNodePos = { ...node.position };
-
       const handleMouseMove = (moveEvent: MouseEvent) => {
-        const dx = moveEvent.clientX - startPos.x;
-        const dy = moveEvent.clientY - startPos.y;
-        onMove(node.id, { x: startNodePos.x + dx, y: startNodePos.y + dy });
+        onMove(node.id, { x: startNodePos.x + (moveEvent.clientX - startPos.x), y: startNodePos.y + (moveEvent.clientY - startPos.y) });
       };
-
       const handleMouseUp = () => {
         document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('mouseup', handleMouseUp);
       };
-
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
     };
-
-    nodeEl.addEventListener('mousedown', handleMouseDown);
-    return () => nodeEl.removeEventListener('mousedown', handleMouseDown);
+    handleEl.addEventListener('mousedown', handleMouseDown);
+    return () => handleEl.removeEventListener('mousedown', handleMouseDown);
   }, [node.id, node.position, onMove]);
 
   return (
     <div
-      ref={ref}
       id={node.id}
-      className={`absolute bg-app-bg-content border-2 rounded-lg shadow-md w-48 cursor-grab ${isSelected ? selectedClasses : 'border-app-border'}`}
+      className={`absolute bg-app-bg-content border-2 rounded-lg shadow-md w-48 ${isSelected ? selectedClasses : 'border-app-border'}`}
       style={{ left: node.position.x, top: node.position.y }}
-      onMouseDown={(e) => onSelect(e, node.id)}
+      onClick={(e) => onSelect(e, node.id)}
     >
+      <button ref={dragHandleRef} className="absolute top-2 left-2 p-1 text-gray-400 cursor-grab active:cursor-grabbing"><DragHandleIcon /></button>
       <button onClick={() => onDelete(node.id)} className="absolute -top-2 -right-2 bg-white p-0.5 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-100"><svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd"></path></svg></button>
-      <button onClick={(e) => onStartLinking(e, node.id)} className="absolute top-1 right-8 bg-blue-100 text-blue-600 text-xs px-2 py-1 rounded hover:bg-blue-200">Link</button>
-      <div className="p-3">
+      <ConnectionPort position="right" onMouseDown={(e) => onPortMouseDown(e, node.id)} onMouseUp={(e) => onPortMouseUp(e, node.id)} />
+      <ConnectionPort position="left" onMouseDown={(e) => onPortMouseDown(e, node.id)} onMouseUp={(e) => onPortMouseUp(e, node.id)} />
+      <div className="p-3 pt-8 text-center">
         <p className="font-bold text-sm text-app-text">{node.title}</p>
         <p className="text-xs text-app-text-subtle">{node.type}</p>
       </div>
@@ -71,5 +66,4 @@ const FlowNode: React.FC<FlowNodeProps> = ({ node, isSelected, onSelect, onMove,
     </div>
   );
 };
-
 export default FlowNode;

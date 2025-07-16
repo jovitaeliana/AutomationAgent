@@ -1,4 +1,4 @@
-// src/pages/DatasetTestingPage.tsx
+// src/pages/UploadDatatestPage.tsx
 import React, { useState } from 'react';
 import PageHeader from '../components/PageHeader';
 import { SelectField } from '../components/FormField';
@@ -15,13 +15,13 @@ const automationOptions = [
   "Customer Support RAG"
 ];
 
-const DatasetTestingPage: React.FC = () => {
+const UploadDatatestPage: React.FC = () => {
   // State for the form fields
   const [selectedAutomation, setSelectedAutomation] = useState<string>('');
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-app-bg-highlight to-app-bg text-app-text font-sans">
-      <PageHeader title="Test a Dataset" subtitle="Upload and test your dataset against automations">
+      <PageHeader title="Upload a Test File" subtitle="Upload and test your dataset against test files">
         <div className="flex items-center space-x-4">
           <button className="text-app-text-subtle hover:opacity-80">
             <BackButtonIcon />
@@ -67,4 +67,4 @@ const DatasetTestingPage: React.FC = () => {
   );
 };
 
-export default DatasetTestingPage;
+export default UploadDatatestPage;

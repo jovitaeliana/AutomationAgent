@@ -5,7 +5,7 @@ import ChatPanel from '../components/ChatPanel';
 import FileUploadButton from '../components/FileUploadButton';
 import { BackButtonIcon } from '../components/Icons';
 
-const TestDatasetPage: React.FC = () => {
+const UploadDatatestPage: React.FC = () => {
   // State for all the form fields on this page
   const [datasetName, setDatasetName] = useState('');
   const [testType, setTestType] = useState('mcq');
@@ -14,7 +14,7 @@ const TestDatasetPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-app-bg-highlight to-app-bg text-app-text font-sans">
-      <PageHeader title="Create Test Dataset" subtitle="Upload and configure your test data">
+      <PageHeader title="Upload Data" subtitle="Upload and configure your data">
         <div className="flex items-center space-x-4">
           <button type="button" className="text-app-text-subtle hover:opacity-80">
             <BackButtonIcon />
@@ -43,7 +43,7 @@ const TestDatasetPage: React.FC = () => {
           <div className="bg-app-bg-content rounded-xl border border-app-border p-6 hover:shadow-lg transition-all flex flex-col md:flex-row gap-8">
             <div className="flex-1 space-y-8">
               <div>
-                <h2 className="text-2xl font-semibold text-app-text mb-4">Upload Data Files</h2>
+                <h2 className="text-2xl font-semibold text-app-text mb-4">Upload Datatest File</h2>
                 <p className="block text-sm font-medium text-app-text mb-2">Upload your data file (CSV, JSON, TXT, etc.)</p>
                 <FileUploadButton id="data-file-upload" onFileSelect={() => {}} />
               </div>
@@ -100,4 +100,4 @@ const TestDatasetPage: React.FC = () => {
   );
 };
 
-export default TestDatasetPage;
+export default UploadDatatestPage;

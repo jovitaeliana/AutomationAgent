@@ -4,12 +4,12 @@ import { useState } from 'react';
 import HomePage from './pages/HomePage';
 import ConfigureAgentPage from './pages/ConfigureAgentPage';
 import AppChoicePage from './pages/AppChoicePage';
-import DatasetTestingPage from './pages/DatasetTestingPage';
-import TestDatasetPage from './pages/TestDatasetPage'; // This corresponds to the "Create Test Dataset" page
+import UploadDatatestPage from './pages/UploadDatatestPage';
 import AgentCreationPage from './pages/AgentCreationPage';
+import UploadTestingFilePage from './pages/DatasetTestingPage';
 
 // Define the possible page names for type safety
-type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'test-dataset' | 'agent-creation';
+type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'agent-creation';
 
 function App() {
   const [page, setPage] = useState<PageName>('home');
@@ -24,9 +24,9 @@ function App() {
       case 'choice':
         return <AppChoicePage />;
       case 'dataset-testing':
-        return <DatasetTestingPage />;
-      case 'test-dataset':
-        return <TestDatasetPage />;
+        return <UploadTestingFilePage />;
+      case 'upload-dataset':
+        return <UploadDatatestPage />;
       case 'agent-creation':
         return <AgentCreationPage />;
       default:
@@ -42,8 +42,8 @@ function App() {
         <button onClick={() => setPage('home')} className="ml-4 underline opacity-80 hover:opacity-100">Home</button>
         <button onClick={() => setPage('configure')} className="ml-4 underline opacity-80 hover:opacity-100">Configure Agent</button>
         <button onClick={() => setPage('choice')} className="ml-4 underline opacity-80 hover:opacity-100">App Choice</button>
-        <button onClick={() => setPage('dataset-testing')} className="ml-4 underline opacity-80 hover:opacity-100">Dataset Testing</button>
-        <button onClick={() => setPage('test-dataset')} className="ml-4 underline opacity-80 hover:opacity-100">Create Test Dataset</button>
+        <button onClick={() => setPage('dataset-testing')} className="ml-4 underline opacity-80 hover:opacity-100">Upload Test Files</button>
+        <button onClick={() => setPage('upload-dataset')} className="ml-4 underline opacity-80 hover:opacity-100">Upload Dataset</button>
         <button onClick={() => setPage('agent-creation')} className="ml-4 underline opacity-80 hover:opacity-100">Agent Creation</button>
       </nav>
 
