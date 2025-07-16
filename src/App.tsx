@@ -1,52 +1,54 @@
-// src/App.tsx
-import React from 'react';
-import PageHeader from './components/PageHeader';
-import SelectionCard from './components/SelectionCard';
-import { AutomationIcon, RagIcon, FlowIcon, TestIcon } from './components/Icons'; // We'll create this file next
-import RecentProjects from './components/RecentProjects';
+import React, { useState } from 'react';
+
+// Import all page components
+import HomePage from './pages/HomePage';
+import ConfigureAgentPage from './pages/ConfigureAgentPage';
+import AppChoicePage from './pages/AppChoicePage';
+import DatasetTestingPage from './pages/DatasetTestingPage';
+import TestDatasetPage from './pages/DatasetTestingPage';
+import AgentCreationPage from './pages/AgentCreationPage';
+
+// Define the possible page names for type safety
+type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'test-dataset' | 'agent-creation';
 
 function App() {
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white text-blue-900 font-sans">
-      <PageHeader
-        title="Automation Platform"
-        subtitle="Build, deploy, and manage intelligent automations"
-      />
-      <main className="max-w-7xl mx-auto px-8 py-12">
-        <section className="mb-16">
-          <h2 className="text-2xl font-semibold mb-8 text-center text-blue-900">
-            What would you like to create?
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <SelectionCard
-              icon={<AutomationIcon />}
-              title="Create New Automation"
-              description="Build automated workflows and processes"
-              onClick={() => (window.location.href = 'configure-agent.html')}
-            />
-            <SelectionCard
-              icon={<RagIcon />}
-              title="Build RAG Pipeline"
-              description="Create knowledge retrieval systems"
-              onClick={() => (window.location.href = 'test-dataset.html')}
-            />
-            <SelectionCard
-              icon={<FlowIcon />}
-              title="Create New Flow"
-              description="Design visual workflow diagrams"
-              onClick={() => (window.location.href = 'agentcreation.html')}
-            />
-            <SelectionCard
-              icon={<TestIcon />}
-              title="Test Dataset"
-              description="Validate and test your data"
-              onClick={() => (window.location.href = 'Dataset-Testing.html')}
-            />
-          </div>
-        </section>
+  const [page, setPage] = useState<PageName>('home');
 
-        <RecentProjects />
-      </main>
+  // Helper function to render the correct page based on state
+  const renderPage = () => {
+    switch (page) {
+      case 'home':
+        return <HomePage />;
+      case 'configure':
+        return <ConfigureAgentPage />;
+      case 'choice':
+        return <AppChoicePage />;
+      case 'dataset-testing':
+        return <DatasetTestingPage />;
+      case 'test-dataset':
+        return <TestDatasetPage />;
+      case 'agent-creation':
+        return <AgentCreationPage />;
+      default:
+        return <HomePage />;
+    }
+  };
+
+  return (
+    <div>
+      {/* Temporary navigation bar for easy testing */}
+      <nav className="p-2 bg-gray-800 text-white text-xs text-center sticky top-0 z-50">
+        <span className="font-bold">Temp Nav:</span>
+        <button onClick={() => setPage('home')} className="ml-4 underline opacity-80 hover:opacity-100">Home</button>
+        <button onClick={() => setPage('configure')} className="ml-4 underline opacity-80 hover:opacity-100">Configure Agent</button>
+        <button onClick={() => setPage('choice')} className="ml-4 underline opacity-80 hover:opacity-100">App Choice</button>
+        <button onClick={() => setPage('dataset-testing')} className="ml-4 underline opacity-80 hover:opacity-100">Dataset Testing</button>
+        <button onClick={() => setPage('test-dataset')} className="ml-4 underline opacity-80 hover:opacity-100">Create Test Dataset</button>
+        <button onClick={() => setPage('agent-creation')} className="ml-4 underline opacity-80 hover:opacity-100">Agent Creation</button>
+      </nav>
+
+      {/* Render the active page */}
+      {renderPage()}
     </div>
   );
 }
