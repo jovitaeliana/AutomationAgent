@@ -1,16 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import PageHeader from '../components/PageHeader';
 import SectionCard from '../components/SectionCard';
 import PresetCard from '../components/PresetCard';
 import { InputField, TextareaField } from '../components/FormField';
 import { WeatherConfigFields, SearchConfigFields, CustomConfigFields } from '../components/PresetConfigs';
 import { BackButtonIcon } from '../components/Icons';
-import FlowNode from '../components/FlowNode';
-import Connector from '../components/Connector';
-import ConfigurationPanel from '../components/ConfigurationPanel';
 
 type Preset = { id: string; emoji: string; title: string; description: string; };
-type FlowNodeData = { id: string; title: string; type: string; position: { x: number; y: number }; };
 
 const ConfigureAgentPage: React.FC = () => {
   // State for data fetched from API
@@ -27,7 +23,7 @@ const ConfigureAgentPage: React.FC = () => {
   const [systemPrompt, setSystemPrompt] = useState('');
   const [limitations, setLimitations] = useState('');
   
-  // Preset-specific state
+  // State for preset-specific fields
   const [weatherApiKey, setWeatherApiKey] = useState('');
   const [location, setLocation] = useState('Singapore');
   const [units, setUnits] = useState('Celsius');
@@ -36,14 +32,6 @@ const ConfigureAgentPage: React.FC = () => {
   const [maxResults, setMaxResults] = useState('10');
   const [agentType, setAgentType] = useState('LLM Agent');
   const [configJson, setConfigJson] = useState('');
-
-  // Node and linking state
-  const [nodes, setNodes] = useState<FlowNodeData[]>([]);
-  const [connections, setConnections] = useState<Array<[string, string]>>([]);
-  const [linkingState, setLinkingState] = useState<{ fromNode: string; toMouse: { x: number; y: number } } | null>(null);
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [configuringNodeId, setConfiguringNodeId] = useState<string | null>(null);
-  const canvasRef = useRef<HTMLDivElement | null>(null);
 
   // useEffect to fetch presets when the component mounts
   useEffect(() => {
@@ -96,44 +84,6 @@ const ConfigureAgentPage: React.FC = () => {
     }
   };
 
-  const moveNode = (nodeId: string, position: { x: number, y: number }) => {
-    setNodes((prevNodes: FlowNodeData[]) =>
-      prevNodes.map((node: FlowNodeData) =>
-        node.id === nodeId ? { ...node, position } : node
-      )
-    );
-  };
-
-  const handlePortMouseDown = (e: React.MouseEvent, fromNode: string) => {
-    e.stopPropagation();
-    setLinkingState({ fromNode, toMouse: { x: e.clientX, y: e.clientY } });
-
-    const handleMouseMove = (moveEvent: MouseEvent) => {
-      setLinkingState((prev) =>
-        prev ? { ...prev, toMouse: { x: moveEvent.clientX, y: moveEvent.clientY } } : null
-      );
-    };
-
-    const handleMouseUp = () => {
-      setLinkingState(null);
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
-    };
-
-    document.addEventListener("mousemove", handleMouseMove);
-    document.addEventListener("mouseup", handleMouseUp);
-  };
-
-  const getPortPosition = (nodeId: string): { x: number; y: number } => {
-    const nodeEl = document.getElementById(nodeId);
-    if (!nodeEl) return { x: 0, y: 0 };
-    const rect = nodeEl.getBoundingClientRect();
-    return {
-      x: rect.left + rect.width / 2,
-      y: rect.top + rect.height / 2,
-    };
-  };
-
   return (
     <form onSubmit={handleSaveConfiguration} className="min-h-screen bg-gradient-to-br from-app-bg-highlight to-app-bg text-app-text font-sans">
       <PageHeader title="Configure Agent" subtitle="Set up and customize your automation agent">
@@ -173,51 +123,6 @@ const ConfigureAgentPage: React.FC = () => {
             <TextareaField label="Limitations" placeholder="Specify any limitations or restrictions..." value={limitations} onChange={setLimitations} />
           </div>
         </SectionCard>
-
-        <SectionCard title="Node Canvas">
-          <div ref={canvasRef} className="relative bg-gray-50 overflow-auto">
-            <svg className="absolute top-0 left-0 w-full h-full pointer-events-none">
-              {connections.map(([startId, endId]) => (
-                <Connector
-                  key={`${startId}-${endId}`}
-                  from={getPortPosition(startId)}
-                  to={getPortPosition(endId)}
-                />
-              ))}
-            </svg>
-            {nodes.map((node) => (
-              <FlowNode
-                key={node.id}
-                node={node}
-                isSelected={selectedNodeId === node.id}
-                onSelect={(e, id) => {
-                  e.stopPropagation();
-                  setSelectedNodeId(id);
-                }}
-                onMove={moveNode}
-                onDelete={(id) => {
-                  setNodes((prev) => prev.filter((n) => n.id !== id));
-                }}
-                onConfigure={(id) => {
-                  setConfiguringNodeId(id);
-                }}
-                onPortMouseDown={handlePortMouseDown}
-                onPortMouseUp={(e, id) => {
-                  e.stopPropagation();
-                  if (linkingState && linkingState.fromNode !== id) {
-                    setConnections((prev) => [...prev, [linkingState.fromNode, id]]);
-                  }
-                  setLinkingState(null);
-                }}
-              />
-            ))}
-          </div>
-        </SectionCard>
-
-        <ConfigurationPanel
-          selectedNode={nodes.find((node) => node.id === configuringNodeId) || null}
-          onClose={() => setConfiguringNodeId(null)}
-        />
       </main> 
     </form>
   );

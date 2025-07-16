@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useDrop } from 'react-dnd';
 import FlowSidebar, { ItemTypes } from '../components/FlowSidebar';
 import type { FlowNodeData } from '../components/FlowNode';
@@ -6,7 +6,6 @@ import ConfigurationPanel from '../components/ConfigurationPanel';
 import Connector from '../components/Connector';
 import type { NodeCategory } from '../components/FlowSidebar';
 import FlowNode from '../components/FlowNode';
-import type { NodeItem } from '../components/FlowSidebar';
 
 const AgentCreationPage: React.FC = () => {
   const [nodes, setNodes] = useState<FlowNodeData[]>([]);
@@ -30,6 +29,7 @@ const AgentCreationPage: React.FC = () => {
         if (!nodesRes.ok || !availableNodesRes.ok) throw new Error('Failed to fetch flow data');
         setNodes(await nodesRes.json());
         setAvailableNodes(await availableNodesRes.json());
+        // Set initial connections based on fetched nodes
         setConnections([['node-trigger', 'node-llm'], ['node-llm', 'node-weather'], ['node-llm', 'node-email']]);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'An unknown error');
@@ -40,34 +40,50 @@ const AgentCreationPage: React.FC = () => {
     fetchData();
   }, []);
 
+  // Use useCallback to memoize the moveNode function for performance
+  const moveNode = useCallback((nodeId: string, position: { x: number; y: number }) => {
+    setNodes((prevNodes) =>
+      prevNodes.map((node) => (node.id === nodeId ? { ...node, position } : node))
+    );
+  }, []);
+
   // Set up the canvas as a drop target
   const [, drop] = useDrop(() => ({
-    accept: ItemTypes.NODE,
-    drop: (item: NodeItem, monitor) => {
+    accept: [ItemTypes.NODE, 'canvas-node'],
+    drop: (item: any, monitor) => {
+      const delta = monitor.getDifferenceFromInitialOffset();
       const offset = monitor.getClientOffset();
-      if (!canvasRef.current || !offset) return;
-      const canvasRect = canvasRef.current.getBoundingClientRect();
-      const newNode: FlowNodeData = {
-        id: `node-${Date.now()}`,
-        title: `${item.icon} ${item.title}`,
-        type: item.description,
-        position: { x: offset.x - canvasRect.left, y: offset.y - canvasRect.top },
-      };
-      setNodes(prev => [...prev, newNode]);
+      if (!canvasRef.current || !offset || !delta) return;
+
+      if (monitor.getItemType() === 'canvas-node') {
+        const left = Math.round(item.x + delta.x);
+        const top = Math.round(item.y + delta.y);
+        moveNode(item.id, { x: left, y: top });
+      } else {
+        const canvasRect = canvasRef.current.getBoundingClientRect();
+        const newNode: FlowNodeData = {
+          id: `node-${Date.now()}`,
+          title: `${item.icon} ${item.title}`,
+          type: item.description,
+          position: { x: offset.x - canvasRect.left, y: offset.y - canvasRect.top },
+        };
+        setNodes(prev => [...prev, newNode]);
+      }
     },
-  }));
+  }), [moveNode]);
+
   drop(canvasRef);
 
-  // State update functions
-  const moveNode = (nodeId: string, position: { x: number, y: number }) => setNodes(prev => prev.map(n => (n.id === nodeId ? { ...n, position } : n)));
   const deleteNode = (nodeId: string) => {
     setNodes(prev => prev.filter(n => n.id !== nodeId));
     setConnections(prev => prev.filter(c => c[0] !== nodeId && c[1] !== nodeId));
   };
+
   const handlePortMouseDown = (e: React.MouseEvent, fromNode: string) => {
     e.stopPropagation();
     setLinkingNodeId(fromNode);
   };
+
   const handlePortMouseUp = (e: React.MouseEvent, toNode: string) => {
     e.stopPropagation();
     if (linkingNodeId && linkingNodeId !== toNode) {
@@ -76,7 +92,6 @@ const AgentCreationPage: React.FC = () => {
     setLinkingNodeId(null);
   };
   
-  // Helper to get node positions for drawing connectors
   const getPortPosition = (nodeId: string, side: 'left' | 'right') => {
     const nodeEl = document.getElementById(nodeId);
     if (!nodeEl) return { x: 0, y: 0 };
@@ -99,9 +114,12 @@ const AgentCreationPage: React.FC = () => {
               {connections.map(([startId, endId]) => <Connector key={`${startId}-${endId}`} from={getPortPosition(startId, 'right')} to={getPortPosition(endId, 'left')} />)}
             </svg>
             {nodes.map(node => (
-              <FlowNode key={node.id} node={node} isSelected={selectedNodeId === node.id}
+              <FlowNode
+                key={node.id}
+                node={node}
+                isSelected={selectedNodeId === node.id}
                 onSelect={(e: React.MouseEvent, id: string) => { e.stopPropagation(); setSelectedNodeId(id); }}
-                onMove={moveNode}
+                onMove={(nodeId: string, position: { x: number; y: number }) => moveNode(nodeId, position)}
                 onDelete={deleteNode}
                 onConfigure={setConfiguringNodeId}
                 onPortMouseDown={handlePortMouseDown}
@@ -109,10 +127,17 @@ const AgentCreationPage: React.FC = () => {
               />
             ))}
           </div>
-          <ConfigurationPanel selectedNode={nodes.find(n => n.id === configuringNodeId) || null} onClose={() => setConfiguringNodeId(null)} />
+          <ConfigurationPanel
+            selectedNode={nodes.find(n => n.id === configuringNodeId) || null}
+            nodeConfig={{}} // Placeholder for node configuration
+            onConfigChange={(newConfig) => console.log(newConfig)} // Placeholder for config change handler
+            onClose={() => setConfiguringNodeId(null)}
+            onSave={() => console.log('Save configuration')} // Placeholder for save handler
+          />
         </main>
       </div>
     </div>
   );
 };
+
 export default AgentCreationPage;
