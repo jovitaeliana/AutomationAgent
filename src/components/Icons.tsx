@@ -1,5 +1,4 @@
 // src/components/Icons.tsx
-import React from 'react';
 
 const iconSizing = "w-8 h-8";
 

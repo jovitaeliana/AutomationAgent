@@ -17,7 +17,6 @@ const automationOptions = [
 
 const DatasetTestingPage: React.FC = () => {
   // State for the form fields
-  const [dataFile, setDataFile] = useState<File | null>(null);
   const [selectedAutomation, setSelectedAutomation] = useState<string>('');
 
   return (
@@ -38,7 +37,7 @@ const DatasetTestingPage: React.FC = () => {
         <div className="border-2 border-app-border rounded-xl p-6 bg-app-bg-content hover:border-app-border-highlight transition-colors">
           <h2 className="text-2xl font-semibold mb-4 text-app-text">Upload Test Set</h2>
           <p className="block text-sm font-medium mb-2 text-app-text">Select your test set file (CSV, JSON, TXT, etc.)</p>
-          <FileUploadButton id="dataset-file-upload" onFileSelect={(file) => setDataFile(file)} />
+          <FileUploadButton id="dataset-file-upload" onFileSelect={() => {}} />
           <p className="text-xs mt-2 text-app-text-subtle">Supported formats: CSV, JSON, TXT</p>
         </div>
 

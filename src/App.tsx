@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 
 // Import all page components
 import HomePage from './pages/HomePage';

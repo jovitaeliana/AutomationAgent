@@ -10,8 +10,6 @@ const TestDatasetPage: React.FC = () => {
   const [datasetName, setDatasetName] = useState('');
   const [testType, setTestType] = useState('mcq');
   const [description, setDescription] = useState('');
-  const [dataFile, setDataFile] = useState<File | null>(null);
-  const [testFile, setTestFile] = useState<File | null>(null);
   const [selectedAutomation, setSelectedAutomation] = useState('');
 
   return (
@@ -47,12 +45,12 @@ const TestDatasetPage: React.FC = () => {
               <div>
                 <h2 className="text-2xl font-semibold text-app-text mb-4">Upload Data Files</h2>
                 <p className="block text-sm font-medium text-app-text mb-2">Upload your data file (CSV, JSON, TXT, etc.)</p>
-                <FileUploadButton id="data-file-upload" onFileSelect={setDataFile} />
+                <FileUploadButton id="data-file-upload" onFileSelect={() => {}} />
               </div>
               <div>
                 <h2 className="text-2xl font-semibold text-app-text mb-4">Upload Test Files</h2>
                 <p className="block text-sm font-medium text-app-text mb-2">Upload your test file (CSV, JSON, TXT, etc.)</p>
-                <FileUploadButton id="test-file-upload" onFileSelect={setTestFile} />
+                <FileUploadButton id="test-file-upload" onFileSelect={() => {}} />
               </div>
             </div>
             <div className="w-full md:w-96">

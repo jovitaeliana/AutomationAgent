@@ -1,4 +1,9 @@
-{
+{"initialFlowNodes": [
+    { "id": "node-trigger", "title": "🔗 API Webhook", "type": "Trigger", "position": { "x": 100, "y": 200 } },
+    { "id": "node-llm", "title": "🧠 LLM", "type": "Processing", "position": { "x": 350, "y": 200 } },
+    { "id": "node-weather", "title": "🌦️ Weather API", "type": "Action", "position": { "x": 600, "y": 100 } },
+    { "id": "node-email", "title": "📧 Send Email", "type": "Action", "position": { "x": 600, "y": 300 } }
+  ],
   "automations": [
     { "id": 1, "title": "Singapore Weather Automation", "description": "10 months ago • by John Doe", "tags": ["API", "Active"] },
     { "id": 2, "title": "Talking Avatar Automation", "description": "12 months ago • by John Doe", "tags": ["LLM", "Active"] },
