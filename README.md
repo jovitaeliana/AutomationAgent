@@ -188,10 +188,9 @@ The frontend follows a **component-based architecture** using React 19 with Type
 HomePage
 ├── PageHeader (title, subtitle)
 ├── SelectionCards (4 main actions)
-│   ├── Create New Automation → ConfigureAgentPage
-│   ├── Build RAG Pipeline → DatasetTestingPage  
+│   ├── Create New Agent → ConfigureAgentPage 
 │   ├── Create New Flow → AgentCreationPage
-│   └── Test Dataset → DatasetTestingPage
+│   └── Upload Dataset → UploadDatatestPage
 └── RecentProjects
     ├── API Data Fetching (useEffect)
     ├── Tab Navigation (automations | RAG models)

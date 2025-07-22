@@ -70,7 +70,7 @@ const UploadDatatestPage: React.FC<UploadDatatestPageProps> = ({ onNavigate }) =
           </div>
           
           {/* Run Test & Stats */}
-          <div className="bg-app-bg-content rounded-xl border border-app-border p-6 hover:shadow-lg transition-all">
+          {/* <div className="bg-app-bg-content rounded-xl border border-app-border p-6 hover:shadow-lg transition-all">
             <h2 className="text-2xl font-semibold text-app-text mb-6">Test Your Dataset</h2>
             <div className="space-y-6">
               <div className="bg-app-bg-highlight rounded-lg p-6">
@@ -104,7 +104,7 @@ const UploadDatatestPage: React.FC<UploadDatatestPageProps> = ({ onNavigate }) =
                 </div>
               </div>
             </div>
-          </div>
+          </div> */}
         </form>
       </main>
     </div>

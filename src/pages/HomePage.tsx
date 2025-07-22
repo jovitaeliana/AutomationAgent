@@ -43,8 +43,8 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
             <div className="w-full sm:w-80"> 
               <SelectionCard
                 icon={<TestIcon />}
-                title="Test Dataset"
-                description="Validate and test your data"
+                title="Upload Dataset"
+                description="Upload and create test datasets"
                 onClick={() => onNavigate('upload-dataset')}
               />
             </div>
