@@ -1,0 +1,37 @@
+[
+  {
+    "id": 1,
+    "question": "What is the capital of Singapore?",
+    "answer": "Singapore",
+    "category": "geography",
+    "difficulty": "easy"
+  },
+  {
+    "id": 2,
+    "question": "What programming language is used for web development?",
+    "answer": "JavaScript",
+    "category": "technology",
+    "difficulty": "medium"
+  },
+  {
+    "id": 3,
+    "question": "What is 15 + 27?",
+    "answer": "42",
+    "category": "math",
+    "difficulty": "easy"
+  },
+  {
+    "id": 4,
+    "question": "Who wrote the novel '1984'?",
+    "answer": "George Orwell",
+    "category": "literature",
+    "difficulty": "medium"
+  },
+  {
+    "id": 5,
+    "question": "What is the largest planet in our solar system?",
+    "answer": "Jupiter",
+    "category": "science",
+    "difficulty": "easy"
+  }
+]

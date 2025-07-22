@@ -8,20 +8,110 @@ import { BackButtonIcon } from '../components/Icons';
 // Define the page names type
 type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'agent-creation';
 
-interface UploadDatatestPageProps {
+interface UploadDatasetPageProps {
   onNavigate: (page: PageName) => void;
 }
 
-const UploadDatatestPage: React.FC<UploadDatatestPageProps> = ({ onNavigate }) => {
+const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => {
   // State for all the form fields on this page
   const [datasetName, setDatasetName] = useState('');
   const [testType, setTestType] = useState('mcq');
   const [description, setDescription] = useState('');
   const [selectedAutomation, setSelectedAutomation] = useState('');
+  
+  // State for uploaded files
+  const [datasetFile, setDatasetFile] = useState<File | null>(null);
+  const [testFile, setTestFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<string>('');
+
+  // Handle file selection
+  const handleDatasetFileSelect = (file: File) => {
+    // Validate file type
+    const allowedTypes = ['.csv', '.json', '.txt', '.xlsx', '.xls', '.pdf', '.docx'];
+    const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
+    
+    if (!allowedTypes.includes(fileExtension)) {
+      setUploadStatus(`Invalid file type. Please select: ${allowedTypes.join(', ')}`);
+      return;
+    }
+    
+    setDatasetFile(file);
+    setUploadStatus(`Dataset file "${file.name}" selected`);
+  };
+
+  const handleTestFileSelect = (file: File) => {
+    // Validate file type
+    const allowedTypes = ['.csv', '.json', '.txt', '.xlsx', '.xls'];
+    const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
+    
+    if (!allowedTypes.includes(fileExtension)) {
+      setUploadStatus(`Invalid file type. Please select: ${allowedTypes.join(', ')}`);
+      return;
+    }
+    
+    setTestFile(file);
+    setUploadStatus(`Test file "${file.name}" selected`);
+  };
+
+  // Handle form submission
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!datasetFile) {
+      setUploadStatus('Please select a dataset file before saving');
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadStatus('Uploading dataset...');
+
+    try {
+      // Create FormData for file upload
+      const formData = new FormData();
+      formData.append('datasetName', datasetName);
+      formData.append('testType', testType);
+      formData.append('description', description);
+      formData.append('datasetFile', datasetFile);
+      
+      if (testFile) {
+        formData.append('testFile', testFile);
+      }
+
+      // Upload to your backend
+      const response = await fetch('http://localhost:3002/datasets', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Upload failed: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      console.log('Upload successful:', result);
+      setUploadStatus('Dataset uploaded successfully!');
+      
+      // Reset form after successful upload
+      setTimeout(() => {
+        setDatasetName('');
+        setDescription('');
+        setDatasetFile(null);
+        setTestFile(null);
+        setUploadStatus('');
+      }, 2000);
+
+    } catch (error) {
+      console.error('Upload error:', error);
+      setUploadStatus(`Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-app-bg-highlight to-app-bg text-app-text font-sans">
-      <PageHeader title="Upload Data" subtitle="Upload and configure your data">
+      <PageHeader title="Upload Dataset" subtitle="Upload and configure your dataset">
         <div className="flex items-center space-x-4">
           <button 
             type="button" 
@@ -30,85 +120,107 @@ const UploadDatatestPage: React.FC<UploadDatatestPageProps> = ({ onNavigate }) =
           >
             <BackButtonIcon />
           </button>
-          <button type="submit" form="test-dataset-form" className="bg-primary text-white font-semibold py-2 px-4 rounded-lg hover:bg-primary-hover">
-            Save Dataset
+          <button 
+            type="submit" 
+            form="dataset-form" 
+            disabled={isUploading}
+            className={`font-semibold py-2 px-4 rounded-lg transition-colors ${
+              isUploading 
+                ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
+                : 'bg-primary text-white hover:bg-primary-hover'
+            }`}
+          >
+            {isUploading ? 'Uploading...' : 'Save Dataset'}
           </button>
         </div>
       </PageHeader>
 
       <main className="max-w-7xl mx-auto px-8 py-12">
-        <form id="test-dataset-form" onSubmit={(e) => e.preventDefault()} className="space-y-8">
+        <form id="dataset-form" onSubmit={handleSubmit} className="space-y-8">
+          {/* Upload Status */}
+          {uploadStatus && (
+            <div className={`p-4 rounded-lg border ${
+              uploadStatus.includes('successfully') 
+                ? 'bg-green-50 border-green-200 text-green-800' 
+                : uploadStatus.includes('failed') || uploadStatus.includes('Please select')
+                ? 'bg-red-50 border-red-200 text-red-800'
+                : 'bg-blue-50 border-blue-200 text-blue-800'
+            }`}>
+              {uploadStatus}
+            </div>
+          )}
+
           {/* Dataset Configuration Card */}
           <div className="bg-app-bg-content rounded-xl border border-app-border p-6 hover:shadow-lg transition-all">
             <h2 className="text-2xl font-semibold text-app-text mb-6">Dataset Configuration</h2>
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <InputField label="Dataset Name" placeholder="My Test Dataset" value={datasetName} onChange={setDatasetName} />
-                <SelectField label="Test Type" options={["Multiple Choice Questions (MCQ)", "Question & Answer"]} value={testType} onChange={setTestType} />
+                <InputField 
+                  label="Dataset Name" 
+                  placeholder="My Dataset" 
+                  value={datasetName} 
+                  onChange={setDatasetName}
+                />
+                <SelectField 
+                  label="Test Type" 
+                  options={["Multiple Choice Questions (MCQ)", "Question & Answer"]} 
+                  value={testType} 
+                  onChange={setTestType} 
+                />
               </div>
-              <TextareaField label="Description" placeholder="Describe the purpose and scope of this test dataset" value={description} onChange={setDescription} />
+              <TextareaField 
+                label="Description" 
+                placeholder="Describe the purpose and scope of this dataset" 
+                value={description} 
+                onChange={setDescription} 
+              />
             </div>
           </div>
 
-          {/* Uploads & Chat Panel */}
+          {/* File Uploads & Chat Panel */}
           <div className="bg-app-bg-content rounded-xl border border-app-border p-6 hover:shadow-lg transition-all flex flex-col md:flex-row gap-8">
             <div className="flex-1 space-y-8">
               <div>
-                <h2 className="text-2xl font-semibold text-app-text mb-4">Upload Datatest File</h2>
-                <p className="block text-sm font-medium text-app-text mb-2">Upload your data file (CSV, JSON, TXT, etc.)</p>
-                <FileUploadButton id="data-file-upload" onFileSelect={() => {}} />
+                <h2 className="text-2xl font-semibold text-app-text mb-4">Upload Dataset File *</h2>
+                <p className="block text-sm font-medium text-app-text mb-2">
+                  Upload your dataset file (CSV, JSON, TXT, XLSX, etc.)
+                </p>
+                <FileUploadButton 
+                  id="data-file-upload" 
+                  onFileSelect={handleDatasetFileSelect}
+                />
+                {datasetFile && (
+                  <div className="mt-2 text-sm text-app-text-muted">
+                    Selected: {datasetFile.name} ({Math.round(datasetFile.size / 1024)}KB)
+                  </div>
+                )}
               </div>
+              
               <div>
-                <h2 className="text-2xl font-semibold text-app-text mb-4">Upload Test Files</h2>
-                <p className="block text-sm font-medium text-app-text mb-2">Upload your test file (CSV, JSON, TXT, etc.)</p>
-                <FileUploadButton id="test-file-upload" onFileSelect={() => {}} />
+                <h2 className="text-2xl font-semibold text-app-text mb-4">Upload Test File (Optional)</h2>
+                <p className="block text-sm font-medium text-app-text mb-2">
+                  Upload your test file for validation (CSV, JSON, TXT, etc.)
+                </p>
+                <FileUploadButton 
+                  id="test-file-upload" 
+                  onFileSelect={handleTestFileSelect}
+                />
+                {testFile && (
+                  <div className="mt-2 text-sm text-app-text-muted">
+                    Selected: {testFile.name} ({Math.round(testFile.size / 1024)}KB)
+                  </div>
+                )}
               </div>
             </div>
+            
             <div className="w-full md:w-96">
               <ChatPanel />
             </div>
           </div>
-          
-          {/* Run Test & Stats */}
-          {/* <div className="bg-app-bg-content rounded-xl border border-app-border p-6 hover:shadow-lg transition-all">
-            <h2 className="text-2xl font-semibold text-app-text mb-6">Test Your Dataset</h2>
-            <div className="space-y-6">
-              <div className="bg-app-bg-highlight rounded-lg p-6">
-                <h3 className="text-lg font-semibold text-app-text mb-4">Run AI Against Your Dataset</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <SelectField
-                      label="Select Automation"
-                      options={["Singapore Weather Automation", "Talking Avatar Automation", "Car Assistant Automation", "Companies T&C RAG Automation"]}
-                      value={selectedAutomation}
-                      onChange={setSelectedAutomation}
-                    />
-                  </div>
-                  <div className="flex items-end">
-                    <button type="button" className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary-hover w-full font-semibold">
-                      🚀 Run Test
-                    </button>
-                  </div>
-                </div>
-                <div className="bg-app-bg-content border border-app-border rounded-lg p-4 min-h-24">
-                  <p className="text-app-text-subtle text-sm">Test results will appear here...</p>
-                </div>
-              </div>
-              <div className="bg-app-bg-highlight rounded-lg p-6">
-                <h3 className="text-lg font-semibold text-app-text mb-4">Dataset Statistics</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                  <div><p className="text-2xl font-bold text-primary">0</p><p className="text-sm text-app-text-subtle">Total Entries</p></div>
-                  <div><p className="text-2xl font-bold text-primary">0%</p><p className="text-sm text-app-text-subtle">Accuracy</p></div>
-                  <div><p className="text-2xl font-bold text-primary">0</p><p className="text-sm text-app-text-subtle">Tests Run</p></div>
-                  <div><p className="text-2xl font-bold text-primary">0</p><p className="text-sm text-app-text-subtle">Automations Tested</p></div>
-                </div>
-              </div>
-            </div>
-          </div> */}
         </form>
       </main>
     </div>
   );
 };
 
-export default UploadDatatestPage;
+export default UploadDatasetPage;
