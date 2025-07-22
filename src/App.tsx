@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import HomePage from './pages/HomePage';
 import ConfigureAgentPage from './pages/ConfigureAgentPage';
 import AppChoicePage from './pages/AppChoicePage';
-import UploadDatatestPage from './pages/UploadDatatestPage';
+import UploadDatatestPage from './pages/UploadDatasetPage';
 import AgentCreationPage from './pages/AgentCreationPage';
 import UploadTestingFilePage from './pages/DatasetTestingPage';
 
