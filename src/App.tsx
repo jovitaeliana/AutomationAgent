@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 // Import all page components
 import HomePage from './pages/HomePage';
@@ -14,6 +14,11 @@ type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-da
 function App() {
   const [page, setPage] = useState<PageName>('home');
 
+  // Scroll to top whenever the page changes
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [page]);
+
   // Helper function to render the correct page based on state
   const renderPage = () => {
     switch (page) {
@@ -28,7 +33,7 @@ function App() {
       case 'upload-dataset':
         return <UploadDatatestPage onNavigate={setPage} />;
       case 'agent-creation':
-        return <AgentCreationPage  onNavigate={setPage} />;
+        return <AgentCreationPage onNavigate={setPage} />;
       default:
         return <HomePage onNavigate={setPage} />;
     }
