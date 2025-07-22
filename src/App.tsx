@@ -20,15 +20,15 @@ function App() {
       case 'home':
         return <HomePage onNavigate={setPage} />;
       case 'configure':
-        return <ConfigureAgentPage />;
+        return <ConfigureAgentPage onNavigate={setPage} />;
       case 'choice':
         return <AppChoicePage />;
       case 'dataset-testing':
         return <UploadTestingFilePage />;
       case 'upload-dataset':
-        return <UploadDatatestPage />;
+        return <UploadDatatestPage onNavigate={setPage} />;
       case 'agent-creation':
-        return <AgentCreationPage />;
+        return <AgentCreationPage  onNavigate={setPage} />;
       default:
         return <HomePage onNavigate={setPage} />;
     }

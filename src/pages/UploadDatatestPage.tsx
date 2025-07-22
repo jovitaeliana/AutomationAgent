@@ -5,7 +5,14 @@ import ChatPanel from '../components/ChatPanel';
 import FileUploadButton from '../components/FileUploadButton';
 import { BackButtonIcon } from '../components/Icons';
 
-const UploadDatatestPage: React.FC = () => {
+// Define the page names type
+type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'agent-creation';
+
+interface UploadDatatestPageProps {
+  onNavigate: (page: PageName) => void;
+}
+
+const UploadDatatestPage: React.FC<UploadDatatestPageProps> = ({ onNavigate }) => {
   // State for all the form fields on this page
   const [datasetName, setDatasetName] = useState('');
   const [testType, setTestType] = useState('mcq');
@@ -16,7 +23,11 @@ const UploadDatatestPage: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-br from-app-bg-highlight to-app-bg text-app-text font-sans">
       <PageHeader title="Upload Data" subtitle="Upload and configure your data">
         <div className="flex items-center space-x-4">
-          <button type="button" className="text-app-text-subtle hover:opacity-80">
+          <button 
+            type="button" 
+            onClick={() => onNavigate('home')} 
+            className="text-app-text-subtle hover:opacity-80"
+          >
             <BackButtonIcon />
           </button>
           <button type="submit" form="test-dataset-form" className="bg-primary text-white font-semibold py-2 px-4 rounded-lg hover:bg-primary-hover">

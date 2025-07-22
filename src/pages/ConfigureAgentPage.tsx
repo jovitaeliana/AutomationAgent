@@ -6,9 +6,16 @@ import { InputField, TextareaField } from '../components/FormField';
 import { WeatherConfigFields, SearchConfigFields, CustomConfigFields } from '../components/PresetConfigs';
 import { BackButtonIcon } from '../components/Icons';
 
+// Define the page names type
+type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'agent-creation';
+
 type Preset = { id: string; emoji: string; title: string; description: string; };
 
-const ConfigureAgentPage: React.FC = () => {
+interface ConfigureAgentPageProps {
+  onNavigate: (page: PageName) => void;
+}
+
+const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) => {
   // State for data fetched from API
   const [presets, setPresets] = useState<Preset[]>([]);
   
@@ -88,7 +95,13 @@ const ConfigureAgentPage: React.FC = () => {
     <form onSubmit={handleSaveConfiguration} className="min-h-screen bg-gradient-to-br from-app-bg-highlight to-app-bg text-app-text font-sans">
       <PageHeader title="Configure Agent" subtitle="Set up and customize your automation agent">
         <div className="flex items-center space-x-4">
-          <button type="button" className="text-app-text-subtle hover:opacity-80"><BackButtonIcon /></button>
+          <button 
+            type="button" 
+            onClick={() => onNavigate('home')} 
+            className="text-app-text-subtle hover:opacity-80"
+          >
+            <BackButtonIcon />
+          </button>
           <button type="submit" className="bg-primary text-white font-semibold py-2 px-4 rounded-lg hover:bg-primary-hover">Save Configuration</button>
         </div>
       </PageHeader>

@@ -6,8 +6,16 @@ import ConfigurationPanel from '../components/ConfigurationPanel';
 import Connector from '../components/Connector';
 import type { NodeCategory } from '../components/FlowSidebar';
 import FlowNode from '../components/FlowNode';
+import { BackButtonIcon } from '../components/Icons';
 
-const AgentCreationPage: React.FC = () => {
+// Define the page names type
+type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'agent-creation';
+
+interface AgentCreationPageProps {
+  onNavigate: (page: PageName) => void;
+}
+
+const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => {
   const [nodes, setNodes] = useState<FlowNodeData[]>([]);
   const [connections, setConnections] = useState<[string, string][]>([]);
   const [availableNodes, setAvailableNodes] = useState<NodeCategory[]>([]);
@@ -106,7 +114,15 @@ const AgentCreationPage: React.FC = () => {
       <div className="flex-1 flex flex-col">
         <header className="bg-app-bg-content border-b border-app-border px-6 py-4 flex items-center justify-between">
           <h1 className="text-2xl font-bold text-app-text">Flow Builder</h1>
-          <button className="bg-primary text-white font-semibold py-2 px-4 rounded-lg hover:bg-primary-hover">Create Flow</button>
+          <div className="flex items-center space-x-4">
+            <button 
+              onClick={() => onNavigate('home')} 
+              className="text-app-text-subtle hover:opacity-80"
+            >
+              <BackButtonIcon />
+            </button>
+            <button className="bg-primary text-white font-semibold py-2 px-4 rounded-lg hover:bg-primary-hover">Create Flow</button>
+          </div>
         </header>
         <main className="flex-1 flex overflow-hidden">
           <div ref={canvasRef} className="flex-1 relative bg-gray-50 overflow-auto" onClick={() => setSelectedNodeId(null)}>
