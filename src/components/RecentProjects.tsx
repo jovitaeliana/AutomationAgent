@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import ProjectListItem from './ProjectListItem';
 
+// Define the page names type
+type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'agent-creation';
+
 // Define types for the data we expect from the API
 interface Project {
   id: number;
@@ -9,7 +12,12 @@ interface Project {
   tags: string[];
 }
 
-const RecentProjects: React.FC = () => {
+// Add props interface for navigation
+interface RecentProjectsProps {
+  onNavigate: (page: PageName) => void;
+}
+
+const RecentProjects: React.FC<RecentProjectsProps> = ({ onNavigate }) => {
   const [activeTab, setActiveTab] = useState<'automations' | 'rag'>('automations');
   
   // State to hold data fetched from the API
@@ -83,10 +91,20 @@ const RecentProjects: React.FC = () => {
       <div className="bg-app-bg-content rounded-xl border border-app-border">
           <div className="divide-y divide-app-border">
             {activeTab === 'automations' && automations.map(project => 
-                <ProjectListItem key={project.id} {...project} />
+                <ProjectListItem 
+                  key={project.id} 
+                  {...project} 
+                  onNavigate={onNavigate}
+                  projectType="automation"
+                />
             )}
             {activeTab === 'rag' && ragModels.map(project => 
-                <ProjectListItem key={project.id} {...project} />
+                <ProjectListItem 
+                  key={project.id} 
+                  {...project} 
+                  onNavigate={onNavigate}
+                  projectType="rag"
+                />
             )}
           </div>
       </div>

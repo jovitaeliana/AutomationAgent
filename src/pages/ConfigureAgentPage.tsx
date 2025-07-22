@@ -37,7 +37,7 @@ const ConfigureAgentPage: React.FC = () => {
   useEffect(() => {
     const fetchPresets = async () => {
       try {
-        const response = await fetch('http://localhost:3001/presets');
+        const response = await fetch('http://localhost:3002/presets');
         if (!response.ok) {
           throw new Error('Failed to fetch presets from server');
         }

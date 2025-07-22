@@ -1,11 +1,17 @@
-// src/pages/HomePage.tsx
 import React from 'react';
 import PageHeader from '../components/PageHeader';
 import SelectionCard from '../components/SelectionCard';
 import { AutomationIcon, RagIcon, FlowIcon, TestIcon } from '../components/Icons';
 import RecentProjects from '../components/RecentProjects';
 
-const HomePage: React.FC = () => {
+// Define the page names type
+type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'agent-creation';
+
+interface HomePageProps {
+  onNavigate: (page: PageName) => void;
+}
+
+const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-app-bg-highlight to-app-bg text-app-text font-sans">
       <PageHeader
@@ -17,35 +23,35 @@ const HomePage: React.FC = () => {
           <h2 className="text-2xl font-semibold mb-8 text-center text-app-text">
             What would you like to create?
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <SelectionCard
-              icon={<AutomationIcon />}
-              title="Create New Automation"
-              description="Build automated workflows and processes"
-              onClick={() => (window.location.href = 'configure-agent.html')}
-            />
-            <SelectionCard
-              icon={<RagIcon />}
-              title="Build RAG Pipeline"
-              description="Create knowledge retrieval systems"
-              onClick={() => (window.location.href = 'test-dataset.html')}
-            />
-            <SelectionCard
-              icon={<FlowIcon />}
-              title="Create New Flow"
-              description="Design visual workflow diagrams"
-              onClick={() => (window.location.href = 'agentcreation.html')}
-            />
-            <SelectionCard
-              icon={<TestIcon />}
-              title="Test Dataset"
-              description="Validate and test your data"
-              onClick={() => (window.location.href = 'Dataset-Testing.html')}
-            />
+          <div className="flex flex-wrap justify-center gap-6">
+            <div className="w-full sm:w-80">
+              <SelectionCard
+                icon={<AutomationIcon />}
+                title="Create New Agent"
+                description="Build automated workflows"
+                onClick={() => onNavigate('configure')}
+              />
+            </div>
+            <div className="w-full sm:w-80">
+              <SelectionCard
+                icon={<FlowIcon />}
+                title="Create New Flow"
+                description="Design visual workflow diagrams"
+                onClick={() => onNavigate('agent-creation')}
+              />
+            </div>
+            <div className="w-full sm:w-80"> 
+              <SelectionCard
+                icon={<TestIcon />}
+                title="Test Dataset"
+                description="Validate and test your data"
+                onClick={() => onNavigate('upload-dataset')}
+              />
+            </div>
           </div>
         </section>
 
-        <RecentProjects />
+        <RecentProjects onNavigate={onNavigate} />
       </main>
     </div>
   );

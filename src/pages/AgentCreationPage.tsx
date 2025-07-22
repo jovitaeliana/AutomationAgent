@@ -23,8 +23,8 @@ const AgentCreationPage: React.FC = () => {
     const fetchData = async () => {
       try {
         const [nodesRes, availableNodesRes] = await Promise.all([
-          fetch('http://localhost:3001/initialFlowNodes'),
-          fetch('http://localhost:3001/availableNodes'),
+          fetch('http://localhost:3002/initialFlowNodes'),
+          fetch('http://localhost:3002/availableNodes'),
         ]);
         if (!nodesRes.ok || !availableNodesRes.ok) throw new Error('Failed to fetch flow data');
         setNodes(await nodesRes.json());

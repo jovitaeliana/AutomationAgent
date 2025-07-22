@@ -18,7 +18,7 @@ function App() {
   const renderPage = () => {
     switch (page) {
       case 'home':
-        return <HomePage />;
+        return <HomePage onNavigate={setPage} />;
       case 'configure':
         return <ConfigureAgentPage />;
       case 'choice':
@@ -30,7 +30,7 @@ function App() {
       case 'agent-creation':
         return <AgentCreationPage />;
       default:
-        return <HomePage />;
+        return <HomePage onNavigate={setPage} />;
     }
   };
 
