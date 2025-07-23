@@ -24,6 +24,13 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
   const [testFile, setTestFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<string>('');
+  
+  // State for MCQ generation
+  const [generatedMCQ, setGeneratedMCQ] = useState<any[]>([]);
+  const [isGenerating, setIsGenerating] = useState(false);
+  
+  // Your Gemini API key - replace with your actual key
+  const GEMINI_API_KEY = 'AIzaSyDwMjzuAfke1ZUDl0xUaUpjsCKNiOU1UPo';
 
   // Handle file selection
   const handleDatasetFileSelect = (file: File) => {
@@ -54,56 +61,108 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
     setUploadStatus(`Test file "${file.name}" selected`);
   };
 
+  // Handle MCQ generation
+  const handleGenerateMCQ = async () => {
+    if (!datasetFile) {
+      setUploadStatus('Please select a dataset file first');
+      return;
+    }
+    
+    setIsGenerating(true);
+    setUploadStatus('Generating MCQ questions...');
+    
+    try {
+      const formData = new FormData();
+      formData.append('file', datasetFile);
+      formData.append('apiKey', GEMINI_API_KEY);
+      
+      console.log('Sending request to generate MCQ...');
+      
+      const response = await fetch('http://localhost:3002/datasets/generate-mcq', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      console.log('Response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Server error response:', errorText);
+        throw new Error(`Generation failed: ${response.statusText} - ${errorText}`);
+      }
+      
+      const result = await response.json();
+      console.log('MCQ generation result:', result);
+      
+      setGeneratedMCQ(result.questions);
+      setUploadStatus(`Generated ${result.questions.length} MCQ questions successfully!`);
+      
+    } catch (error) {
+      console.error('MCQ generation error:', error);
+      
+      // More specific error handling
+      if (error instanceof TypeError && error.message === 'Failed to fetch') {
+        setUploadStatus('Connection failed: Make sure your backend server is running on port 3002');
+      } else {
+        setUploadStatus(`Generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!datasetFile) {
-      setUploadStatus('Please select a dataset file before saving');
+    if (!datasetName) {
+      setUploadStatus('Please enter a dataset name');
+      return;
+    }
+    
+    if (generatedMCQ.length === 0) {
+      setUploadStatus('Please generate MCQ questions first');
       return;
     }
 
     setIsUploading(true);
-    setUploadStatus('Uploading dataset...');
+    setUploadStatus('Saving dataset...');
 
     try {
-      // Create FormData for file upload
-      const formData = new FormData();
-      formData.append('datasetName', datasetName);
-      formData.append('testType', testType);
-      formData.append('description', description);
-      formData.append('datasetFile', datasetFile);
-      
-      if (testFile) {
-        formData.append('testFile', testFile);
-      }
-
-      // Upload to your backend
       const response = await fetch('http://localhost:3002/datasets', {
         method: 'POST',
-        body: formData,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          datasetName,
+          testType,
+          description,
+          questions: generatedMCQ
+        }),
       });
 
       if (!response.ok) {
-        throw new Error(`Upload failed: ${response.statusText}`);
+        throw new Error(`Save failed: ${response.statusText}`);
       }
 
       const result = await response.json();
-      console.log('Upload successful:', result);
-      setUploadStatus('Dataset uploaded successfully!');
+      console.log('Save successful:', result);
+      setUploadStatus('Dataset saved successfully!');
       
-      // Reset form after successful upload
+      // Reset form after successful save
       setTimeout(() => {
         setDatasetName('');
         setDescription('');
         setDatasetFile(null);
         setTestFile(null);
+        setGeneratedMCQ([]);
         setUploadStatus('');
       }, 2000);
 
     } catch (error) {
-      console.error('Upload error:', error);
-      setUploadStatus(`Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('Save error:', error);
+      setUploadStatus(`Save failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsUploading(false);
     }
@@ -123,14 +182,14 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
           <button 
             type="submit" 
             form="dataset-form" 
-            disabled={isUploading}
+            disabled={isUploading || generatedMCQ.length === 0}
             className={`font-semibold py-2 px-4 rounded-lg transition-colors ${
-              isUploading 
+              isUploading || generatedMCQ.length === 0
                 ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
                 : 'bg-primary text-white hover:bg-primary-hover'
             }`}
           >
-            {isUploading ? 'Uploading...' : 'Save Dataset'}
+            {isUploading ? 'Saving...' : 'Save Dataset'}
           </button>
         </div>
       </PageHeader>
@@ -177,7 +236,7 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
             </div>
           </div>
 
-          {/* File Uploads & Chat Panel */}
+          {/* File Uploads & MCQ Generation */}
           <div className="bg-app-bg-content rounded-xl border border-app-border p-6 hover:shadow-lg transition-all flex flex-col md:flex-row gap-8">
             <div className="flex-1 space-y-8">
               <div>
@@ -197,6 +256,21 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
               </div>
               
               <div>
+                <button
+                  type="button"
+                  onClick={handleGenerateMCQ}
+                  disabled={isGenerating || !datasetFile}
+                  className={`w-full font-semibold py-3 px-4 rounded-lg transition-colors ${
+                    isGenerating || !datasetFile
+                      ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
+                >
+                  {isGenerating ? '🤖 Generating MCQ...' : '🧠 Generate MCQ with AI'}
+                </button>
+              </div>
+              
+              <div>
                 <h2 className="text-2xl font-semibold text-app-text mb-4">Upload Test File (Optional)</h2>
                 <p className="block text-sm font-medium text-app-text mb-2">
                   Upload your test file for validation (CSV, JSON, TXT, etc.)
@@ -213,8 +287,35 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
               </div>
             </div>
             
+            {/* Generated MCQ Panel on the Right */}
             <div className="w-full md:w-96">
-              <ChatPanel />
+              {generatedMCQ.length > 0 ? (
+                <div className="bg-app-bg-highlight rounded-lg p-4 h-full">
+                  <h2 className="text-xl font-semibold text-app-text mb-4">Generated Questions ({generatedMCQ.length})</h2>
+                  <div className="overflow-y-auto max-h-110">
+                    {generatedMCQ.map((q, index) => (
+                      <div key={index} className="mb-4 p-3 bg-white rounded border">
+                        <p className="font-medium text-sm">{index + 1}. {q.question}</p>
+                        <div className="mt-2 text-xs text-gray-600">
+                          {q.options?.map((opt: string, i: number) => (
+                            <div key={i} className={opt === q.correctAnswer ? 'font-bold text-green-600' : ''}>
+                              • {opt}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-app-bg-highlight rounded-lg p-6 h-full flex items-center justify-center">
+                  <div className="text-center text-app-text-muted">
+                    <div className="text-4xl mb-4">🤖</div>
+                    <p className="text-lg font-medium mb-2">AI-Generated Questions</p>
+                    <p className="text-sm">Upload a dataset file and click "Generate MCQ with AI" to see questions appear here</p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </form>

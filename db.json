@@ -1,49 +1,239 @@
 {
   "automations": [
-    { "id": 1, "title": "Singapore Weather Automation", "description": "10 months ago • by John Doe", "tags": ["API", "Active"] },
-    { "id": 2, "title": "Talking Avatar Automation", "description": "12 months ago • by John Doe", "tags": ["LLM", "Active"] },
-    { "id": 3, "title": "Car Assistant Automation", "description": "3 months ago • by kempis", "tags": ["AI", "Active"] }
+    {
+      "id": 1,
+      "title": "Singapore Weather Automation",
+      "description": "10 months ago • by John Doe",
+      "tags": [
+        "API",
+        "Active"
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Talking Avatar Automation",
+      "description": "12 months ago • by John Doe",
+      "tags": [
+        "LLM",
+        "Active"
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Car Assistant Automation",
+      "description": "3 months ago • by kempis",
+      "tags": [
+        "AI",
+        "Active"
+      ]
+    }
   ],
   "ragModels": [
-    { "id": 1, "title": "Document Q&A RAG", "description": "Upload documents and ask questions.", "tags": ["RAG"] },
-    { "id": 2, "title": "Contract Analysis RAG", "description": "Extract and summarize terms from contracts.", "tags": ["RAG"] },
-    { "id": 3, "title": "Customer Support RAG", "description": "Answer customer queries using a knowledge base.", "tags": ["RAG"] }
+    {
+      "id": 1,
+      "title": "Document Q&A RAG",
+      "description": "Upload documents and ask questions.",
+      "tags": [
+        "RAG"
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Contract Analysis RAG",
+      "description": "Extract and summarize terms from contracts.",
+      "tags": [
+        "RAG"
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Customer Support RAG",
+      "description": "Answer customer queries using a knowledge base.",
+      "tags": [
+        "RAG"
+      ]
+    }
   ],
   "availableNodes": [
     {
       "category": "Automations",
       "items": [
-        { "id": "auto-weather", "icon": "🌦️", "title": "Weather Automation", "description": "Fetches weather data" },
-        { "id": "auto-avatar", "icon": "🤖", "title": "Avatar Automation", "description": "Makes an avatar talk" }
+        {
+          "id": "auto-weather",
+          "icon": "🌦️",
+          "title": "Weather Automation",
+          "description": "Fetches weather data"
+        },
+        {
+          "id": "auto-avatar",
+          "icon": "🤖",
+          "title": "Avatar Automation",
+          "description": "Makes an avatar talk"
+        }
       ]
     },
     {
       "category": "RAG Models",
       "items": [
-        { "id": "rag-docs", "icon": "📚", "title": "Document Q&A", "description": "Answers from your files" }
+        {
+          "id": "rag-docs",
+          "icon": "📚",
+          "title": "Document Q&A",
+          "description": "Answers from your files"
+        }
       ]
     },
     {
       "category": "Triggers",
       "items": [
-        { "id": "trigger-api", "icon": "🔗", "title": "API Webhook", "description": "HTTP endpoints" }
+        {
+          "id": "trigger-api",
+          "icon": "🔗",
+          "title": "API Webhook",
+          "description": "HTTP endpoints"
+        }
       ]
     }
   ],
   "datasets": [
-    { "id": 1, "name": "MCQ Test Dataset", "type": "Multiple Choice Questions (MCQ)" },
-    { "id": 2, "name": "Q&A Test Dataset", "type": "Question & Answer" }
+    {
+      "id": 1,
+      "name": "MCQ Test Dataset",
+      "type": "Multiple Choice Questions (MCQ)"
+    },
+    {
+      "id": 2,
+      "name": "Q&A Test Dataset",
+      "type": "Question & Answer"
+    },
+    {
+      "id": "1753256166797",
+      "name": "test",
+      "type": "mcq",
+      "description": "Random questions for testing",
+      "createdAt": "2025-07-23T07:36:06.797Z",
+      "questions": [
+        {
+          "id": 1,
+          "question": "What is the capital city of Singapore?",
+          "options": [
+            "Singapore",
+            "Kuala Lumpur",
+            "Bangkok",
+            "Jakarta"
+          ],
+          "correctAnswer": "Singapore",
+          "explanation": "Singapore is a city-state, meaning its capital is the same as the country itself."
+        },
+        {
+          "id": 2,
+          "question": "Which programming language is commonly used for web development?",
+          "options": [
+            "Python",
+            "Java",
+            "JavaScript",
+            "C++"
+          ],
+          "correctAnswer": "JavaScript",
+          "explanation": "JavaScript is a fundamental language for front-end web development and increasingly used in back-end development as well."
+        },
+        {
+          "id": 3,
+          "question": "What is the sum of 15 and 27?",
+          "options": [
+            "32",
+            "42",
+            "37",
+            "22"
+          ],
+          "correctAnswer": "42",
+          "explanation": "Adding 15 and 27 results in 42."
+        },
+        {
+          "id": 4,
+          "question": "Who is the author of the dystopian novel '1984'?",
+          "options": [
+            "Aldous Huxley",
+            "Ray Bradbury",
+            "George Orwell",
+            "Ernest Hemingway"
+          ],
+          "correctAnswer": "George Orwell",
+          "explanation": "George Orwell wrote the influential novel '1984'."
+        },
+        {
+          "id": 5,
+          "question": "Which planet holds the title of the largest in our solar system?",
+          "options": [
+            "Mars",
+            "Earth",
+            "Saturn",
+            "Jupiter"
+          ],
+          "correctAnswer": "Jupiter",
+          "explanation": "Jupiter is significantly larger than any other planet in our solar system."
+        }
+      ],
+      "totalQuestions": 5
+    }
   ],
   "agents": [],
   "presets": [
-    { "id": "weather", "emoji": "🌦️", "title": "Weather API", "description": "Get weather information and forecasts" },
-    { "id": "search", "emoji": "🔍", "title": "Google Search", "description": "Web search capabilities" },
-    { "id": "custom", "emoji": "⚙️", "title": "Custom Configuration", "description": "Build from scratch" }
+    {
+      "id": "weather",
+      "emoji": "🌦️",
+      "title": "Weather API",
+      "description": "Get weather information and forecasts"
+    },
+    {
+      "id": "search",
+      "emoji": "🔍",
+      "title": "Google Search",
+      "description": "Web search capabilities"
+    },
+    {
+      "id": "custom",
+      "emoji": "⚙️",
+      "title": "Custom Configuration",
+      "description": "Build from scratch"
+    }
   ],
   "initialFlowNodes": [
-    { "id": "node-trigger", "title": "🔗 API Webhook", "type": "Trigger", "position": { "x": 100, "y": 200 } },
-    { "id": "node-llm", "title": "🧠 LLM", "type": "Processing", "position": { "x": 350, "y": 200 } },
-    { "id": "node-weather", "title": "🌦️ Weather API", "type": "Action", "position": { "x": 600, "y": 100 } },
-    { "id": "node-email", "title": "📧 Send Email", "type": "Action", "position": { "x": 600, "y": 300 } }
+    {
+      "id": "node-trigger",
+      "title": "🔗 API Webhook",
+      "type": "Trigger",
+      "position": {
+        "x": 100,
+        "y": 200
+      }
+    },
+    {
+      "id": "node-llm",
+      "title": "🧠 LLM",
+      "type": "Processing",
+      "position": {
+        "x": 350,
+        "y": 200
+      }
+    },
+    {
+      "id": "node-weather",
+      "title": "🌦️ Weather API",
+      "type": "Action",
+      "position": {
+        "x": 600,
+        "y": 100
+      }
+    },
+    {
+      "id": "node-email",
+      "title": "📧 Send Email",
+      "type": "Action",
+      "position": {
+        "x": 600,
+        "y": 300
+      }
+    }
   ]
 }
