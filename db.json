@@ -270,15 +270,6 @@
   ],
   "initialFlowNodes": [
     {
-      "id": "node-trigger",
-      "title": "🔗 API Webhook",
-      "type": "Trigger",
-      "position": {
-        "x": 100,
-        "y": 200
-      }
-    },
-    {
       "id": "node-llm",
       "title": "🧠 LLM",
       "type": "Processing",
@@ -301,9 +292,33 @@
       "title": "📧 Send Email",
       "type": "Action",
       "position": {
-        "x": 600,
-        "y": 300
+        "x": 608,
+        "y": 303
+      }
+    },
+    {
+      "id": "node-1753277738858",
+      "title": "🔗 API Webhook",
+      "type": "HTTP endpoints",
+      "position": {
+        "x": 94,
+        "y": 200
       }
     }
-  ]
+  ],
+  "connections": [
+    [
+      "node-llm",
+      "node-weather"
+    ],
+    [
+      "node-llm",
+      "node-email"
+    ],
+    [
+      "node-1753277738858",
+      "node-llm"
+    ]
+  ],
+  "nodeDatasets": {}
 }

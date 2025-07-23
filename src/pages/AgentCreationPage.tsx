@@ -7,9 +7,19 @@ import Connector from '../components/Connector';
 import type { NodeCategory } from '../components/FlowSidebar';
 import FlowNode from '../components/FlowNode';
 import { BackButtonIcon } from '../components/Icons';
+import DatasetSelectionModal from '../components/DatasetSelectionModal';
 
 // Define the page names type
 type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'agent-creation';
+
+interface Dataset {
+  id: string;
+  name: string;
+  type: string;
+  description: string;
+  createdAt: string;
+  totalQuestions: number;
+}
 
 interface AgentCreationPageProps {
   onNavigate: (page: PageName) => void;
@@ -25,20 +35,64 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
+  
+  // Dataset selection modal state
+  const [isDatasetModalOpen, setIsDatasetModalOpen] = useState(false);
+  const [pendingNodeData, setPendingNodeData] = useState<any>(null);
+  const [nodeDatasets, setNodeDatasets] = useState<{[nodeId: string]: Dataset}>({});
 
-  // Fetch initial data from the mock backend
+  // Zoom and pan state
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 });
+  const [connectionsKey, setConnectionsKey] = useState(0); // Force re-render connections
+
+  // Force connections to re-render when nodes are loaded
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setConnectionsKey(prev => prev + 1);
+    }, 100); // Small delay to ensure nodes are rendered
+    
+    return () => clearTimeout(timer);
+  }, [nodes, zoom, pan]);
   useEffect(() => {
     const fetchData = async () => {
       try {
         const [nodesRes, availableNodesRes] = await Promise.all([
           fetch('http://localhost:3002/initialFlowNodes'),
-          fetch('http://localhost:3002/availableNodes'),
+          fetch('http://localhost:3002/availableNodes')
         ]);
+        
         if (!nodesRes.ok || !availableNodesRes.ok) throw new Error('Failed to fetch flow data');
-        setNodes(await nodesRes.json());
+        
+        // Load available nodes for sidebar
         setAvailableNodes(await availableNodesRes.json());
-        // Set initial connections based on fetched nodes
-        setConnections([['node-trigger', 'node-llm'], ['node-llm', 'node-weather'], ['node-llm', 'node-email']]);
+        
+        // Try to load saved flow, fallback to initial nodes if endpoint doesn't exist
+        try {
+          const flowRes = await fetch('http://localhost:3002/flows/current');
+          if (flowRes.ok) {
+            const savedFlow = await flowRes.json();
+            setNodes(savedFlow.nodes || []);
+            // Cast the connections to the proper tuple type
+            const loadedConnections: [string, string][] = (savedFlow.connections || []).map(
+              (conn: any) => [conn[0], conn[1]] as [string, string]
+            );
+            setConnections(loadedConnections);
+            setNodeDatasets(savedFlow.nodeDatasets || {});
+          } else {
+            throw new Error('Flow endpoint not available');
+          }
+        } catch (flowError) {
+          console.log('Using fallback: loading initial nodes');
+          // Load initial nodes if flow endpoint doesn't exist
+          setNodes(await nodesRes.json());
+          // Set initial connections based on fetched nodes
+          const initialConnections: [string, string][] = [['node-trigger', 'node-llm'], ['node-llm', 'node-weather'], ['node-llm', 'node-email']];
+          setConnections(initialConnections);
+        }
+        
       } catch (err) {
         setError(err instanceof Error ? err.message : 'An unknown error');
       } finally {
@@ -49,11 +103,107 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
   }, []);
 
   // Use useCallback to memoize the moveNode function for performance
-  const moveNode = useCallback((nodeId: string, position: { x: number; y: number }) => {
+  const moveNode = useCallback(async (nodeId: string, position: { x: number; y: number }) => {
     setNodes((prevNodes) =>
       prevNodes.map((node) => (node.id === nodeId ? { ...node, position } : node))
     );
+    
+    // Save position to backend
+    try {
+      await fetch(`http://localhost:3002/flows/nodes/${nodeId}/position`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ position }),
+      });
+    } catch (error) {
+      console.error('Error saving node position:', error);
+    }
   }, []);
+
+  // Handle wheel zoom
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      const delta = e.deltaY * -0.001;
+      const newZoom = Math.min(Math.max(0.1, zoom + delta), 3);
+      setZoom(newZoom);
+    }
+  }, [zoom]);
+
+  // Handle mouse down for panning
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (e.button === 1 || (e.button === 0 && e.altKey)) { // Middle mouse button or Alt + left click
+      e.preventDefault();
+      setIsPanning(true);
+      setLastPanPoint({ x: e.clientX, y: e.clientY });
+    }
+  }, []);
+
+  // Handle mouse move for panning
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (isPanning) {
+      const deltaX = e.clientX - lastPanPoint.x;
+      const deltaY = e.clientY - lastPanPoint.y;
+      setPan(prev => ({
+        x: prev.x + deltaX,
+        y: prev.y + deltaY
+      }));
+      setLastPanPoint({ x: e.clientX, y: e.clientY });
+    }
+  }, [isPanning, lastPanPoint]);
+
+  // Handle mouse up for panning
+  const handleMouseUp = useCallback(() => {
+    setIsPanning(false);
+  }, []);
+
+  // Reset zoom and pan
+  const resetView = useCallback(() => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  }, []);
+
+  // Zoom to fit all nodes
+  const zoomToFit = useCallback(() => {
+    if (nodes.length === 0) return;
+    
+    // Calculate bounding box of all nodes
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    nodes.forEach(node => {
+      minX = Math.min(minX, node.position.x);
+      minY = Math.min(minY, node.position.y);
+      maxX = Math.max(maxX, node.position.x + 200); // Assume node width ~200px
+      maxY = Math.max(maxY, node.position.y + 100); // Assume node height ~100px
+    });
+    
+    if (canvasRef.current) {
+      const canvas = canvasRef.current;
+      const padding = 50;
+      const contentWidth = maxX - minX;
+      const contentHeight = maxY - minY;
+      const canvasWidth = canvas.clientWidth - padding * 2;
+      const canvasHeight = canvas.clientHeight - padding * 2;
+      
+      const scaleX = canvasWidth / contentWidth;
+      const scaleY = canvasHeight / contentHeight;
+      const newZoom = Math.min(scaleX, scaleY, 1);
+      
+      setZoom(newZoom);
+      
+      // Center the content
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+      const canvasCenterX = canvas.clientWidth / 2;
+      const canvasCenterY = canvas.clientHeight / 2;
+      
+      setPan({
+        x: canvasCenterX - centerX * newZoom,
+        y: canvasCenterY - centerY * newZoom
+      });
+    }
+  }, [nodes]);
 
   // Set up the canvas as a drop target
   const [, drop] = useDrop(() => ({
@@ -64,27 +214,126 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
       if (!canvasRef.current || !offset || !delta) return;
 
       if (monitor.getItemType() === 'canvas-node') {
-        const left = Math.round(item.x + delta.x);
-        const top = Math.round(item.y + delta.y);
+        const left = Math.round((item.x + delta.x - pan.x) / zoom);
+        const top = Math.round((item.y + delta.y - pan.y) / zoom);
         moveNode(item.id, { x: left, y: top });
       } else {
         const canvasRect = canvasRef.current.getBoundingClientRect();
-        const newNode: FlowNodeData = {
-          id: `node-${Date.now()}`,
-          title: `${item.icon} ${item.title}`,
-          type: item.description,
-          position: { x: offset.x - canvasRect.left, y: offset.y - canvasRect.top },
+        // Adjust position for zoom and pan
+        const position = { 
+          x: (offset.x - canvasRect.left - pan.x) / zoom, 
+          y: (offset.y - canvasRect.top - pan.y) / zoom 
         };
-        setNodes(prev => [...prev, newNode]);
+        
+        // Check if this is a Document Q&A node
+        if (item.title.toLowerCase().includes('document q&a') || item.title.toLowerCase().includes('qa')) {
+          // Store pending node data and open dataset selection modal
+          setPendingNodeData({
+            item,
+            position
+          });
+          setIsDatasetModalOpen(true);
+        } else {
+          // Create node directly for other types
+          const newNode: FlowNodeData = {
+            id: `node-${Date.now()}`,
+            title: `${item.icon} ${item.title}`,
+            type: item.description,
+            position,
+          };
+          
+          // Save to backend
+          fetch('http://localhost:3002/flows/nodes/add', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              node: newNode
+            }),
+          }).then(response => {
+            if (response.ok) {
+              console.log('Node saved to database');
+            } else {
+              console.log('Failed to save to database, keeping local changes');
+            }
+          }).catch(error => {
+            console.error('Error saving node:', error);
+          });
+          
+          setNodes(prev => [...prev, newNode]);
+        }
       }
     },
-  }), [moveNode]);
+  }), [moveNode, pan, zoom]);
+
+  // Handle dataset selection
+  const handleDatasetSelect = async (dataset: Dataset) => {
+    if (pendingNodeData) {
+      const nodeId = `node-${Date.now()}`;
+      const newNode: FlowNodeData = {
+        id: nodeId,
+        title: `${pendingNodeData.item.icon} ${pendingNodeData.item.title}`,
+        type: pendingNodeData.item.description,
+        position: pendingNodeData.position,
+      };
+      
+      try {
+        // Save to backend
+        const response = await fetch('http://localhost:3002/flows/nodes/add', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            node: newNode,
+            dataset: dataset
+          }),
+        });
+        
+        if (response.ok) {
+          console.log('Node saved to database');
+        } else {
+          console.log('Failed to save to database, keeping local changes');
+        }
+      } catch (error) {
+        console.error('Error saving node:', error);
+      }
+      
+      // Update local state regardless of backend success
+      setNodes(prev => [...prev, newNode]);
+      setNodeDatasets(prev => ({ ...prev, [nodeId]: dataset }));
+      setPendingNodeData(null);
+    }
+  };
 
   drop(canvasRef);
 
-  const deleteNode = (nodeId: string) => {
+  const deleteNode = async (nodeId: string) => {
+    try {
+      // Delete from backend
+      const response = await fetch(`http://localhost:3002/flows/nodes/${nodeId}`, {
+        method: 'DELETE',
+      });
+      
+      if (response.ok) {
+        console.log('Node deleted from database');
+      } else {
+        console.log('Failed to delete from database, keeping local changes');
+      }
+    } catch (error) {
+      console.error('Error deleting node:', error);
+    }
+    
+    // Update local state regardless of backend success
     setNodes(prev => prev.filter(n => n.id !== nodeId));
     setConnections(prev => prev.filter(c => c[0] !== nodeId && c[1] !== nodeId));
+    // Remove dataset association
+    setNodeDatasets(prev => {
+      const newDatasets = { ...prev };
+      delete newDatasets[nodeId];
+      return newDatasets;
+    });
   };
 
   const handlePortMouseDown = (e: React.MouseEvent, fromNode: string) => {
@@ -92,19 +341,65 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
     setLinkingNodeId(fromNode);
   };
 
-  const handlePortMouseUp = (e: React.MouseEvent, toNode: string) => {
+  const handlePortMouseUp = async (e: React.MouseEvent, toNode: string) => {
     e.stopPropagation();
     if (linkingNodeId && linkingNodeId !== toNode) {
-      setConnections(prev => [...prev, [linkingNodeId, toNode]]);
+      const newConnection: [string, string] = [linkingNodeId, toNode];
+      const newConnections: [string, string][] = [...connections, newConnection];
+      setConnections(newConnections);
+      
+      // Save connections to backend
+      try {
+        await fetch('http://localhost:3002/flows/connections', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            connections: newConnections
+          }),
+        });
+        console.log('Connections saved to database');
+      } catch (error) {
+        console.error('Error saving connections:', error);
+      }
     }
     setLinkingNodeId(null);
   };
   
   const getPortPosition = (nodeId: string, side: 'left' | 'right') => {
+    // First try to get actual DOM element position (more accurate)
     const nodeEl = document.getElementById(nodeId);
-    if (!nodeEl) return { x: 0, y: 0 };
-    const y = nodeEl.offsetTop + nodeEl.offsetHeight / 2;
-    const x = side === 'left' ? nodeEl.offsetLeft : nodeEl.offsetLeft + nodeEl.offsetWidth;
+    if (nodeEl) {
+      const rect = nodeEl.getBoundingClientRect();
+      const canvasRect = canvasRef.current?.getBoundingClientRect();
+      if (canvasRect) {
+        // Convert screen coordinates back to canvas coordinates
+        const canvasX = (rect.left - canvasRect.left - pan.x) / zoom;
+        const canvasY = (rect.top - canvasRect.top - pan.y) / zoom;
+        
+        const nodeWidth = rect.width / zoom;
+        const nodeHeight = rect.height / zoom;
+        
+        return {
+          x: side === 'left' ? canvasX : canvasX + nodeWidth,
+          y: canvasY + nodeHeight / 2
+        };
+      }
+    }
+    
+    // Fallback to node data positions if DOM element not available
+    const node = nodes.find(n => n.id === nodeId);
+    if (!node) return { x: 0, y: 0 };
+    
+    const nodeWidth = 200; // Approximate node width
+    const nodeHeight = 100; // Approximate node height
+    
+    const y = node.position.y + nodeHeight / 2;
+    const x = side === 'left' 
+      ? node.position.x
+      : node.position.x + nodeWidth;
+    
     return { x, y };
   };
 
@@ -115,6 +410,23 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
         <header className="bg-app-bg-content border-b border-app-border px-6 py-4 flex items-center justify-between">
           <h1 className="text-2xl font-bold text-app-text">Flow Builder</h1>
           <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2 text-sm text-app-text-subtle">
+              <span>Zoom: {Math.round(zoom * 100)}%</span>
+              <button
+                onClick={resetView}
+                className="px-2 py-1 bg-app-bg-highlight rounded hover:bg-app-border transition-colors"
+                title="Reset View (1:1)"
+              >
+                Reset
+              </button>
+              <button
+                onClick={zoomToFit}
+                className="px-2 py-1 bg-app-bg-highlight rounded hover:bg-app-border transition-colors"
+                title="Fit to Screen"
+              >
+                Fit
+              </button>
+            </div>
             <button 
               onClick={() => onNavigate('home')} 
               className="text-app-text-subtle hover:opacity-80"
@@ -125,33 +437,106 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
           </div>
         </header>
         <main className="flex-1 flex overflow-hidden">
-          <div ref={canvasRef} className="flex-1 relative bg-gray-50 overflow-auto" onClick={() => setSelectedNodeId(null)}>
-            <svg className="absolute top-0 left-0 w-full h-full pointer-events-none">
-              {connections.map(([startId, endId]) => <Connector key={`${startId}-${endId}`} from={getPortPosition(startId, 'right')} to={getPortPosition(endId, 'left')} />)}
-            </svg>
-            {nodes.map(node => (
-              <FlowNode
-                key={node.id}
-                node={node}
-                isSelected={selectedNodeId === node.id}
-                onSelect={(e: React.MouseEvent, id: string) => { e.stopPropagation(); setSelectedNodeId(id); }}
-                onMove={(nodeId: string, position: { x: number; y: number }) => moveNode(nodeId, position)}
-                onDelete={deleteNode}
-                onConfigure={setConfiguringNodeId}
-                onPortMouseDown={handlePortMouseDown}
-                onPortMouseUp={handlePortMouseUp}
-              />
-            ))}
+          <div 
+            ref={canvasRef} 
+            className="flex-1 relative overflow-hidden select-none" 
+            style={{
+              backgroundImage: `radial-gradient(circle, rgba(0, 0, 0, 0.2) 1px, transparent 1px)`,
+              backgroundSize: `${20 * zoom}px ${20 * zoom}px`,
+              backgroundPosition: `${pan.x}px ${pan.y}px`,
+              backgroundColor: '#f8fafc',
+              cursor: isPanning ? 'grabbing' : 'grab'
+            }}
+            onWheel={handleWheel}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+            onClick={() => setSelectedNodeId(null)}
+          >
+            <div
+              style={{
+                transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+                transformOrigin: '0 0',
+                width: '5000px', // Large canvas area
+                height: '5000px',
+                position: 'relative'
+              }}
+            >
+              {nodes.map(node => (
+                <FlowNode
+                  key={node.id}
+                  node={node}
+                  isSelected={selectedNodeId === node.id}
+                  onSelect={(e: React.MouseEvent, id: string) => { e.stopPropagation(); setSelectedNodeId(id); }}
+                  onMove={(nodeId: string, position: { x: number; y: number }) => moveNode(nodeId, position)}
+                  onDelete={deleteNode}
+                  onConfigure={setConfiguringNodeId}
+                  onPortMouseDown={handlePortMouseDown}
+                  onPortMouseUp={handlePortMouseUp}
+                />
+              ))}
+              
+              {/* SVG for connections - now inside the transformed container */}
+              <svg 
+                key={connectionsKey} // Force re-render when key changes
+                className="absolute top-0 left-0 pointer-events-none" 
+                style={{ 
+                  width: '5000px', 
+                  height: '5000px',
+                  overflow: 'visible'
+                }}
+              >
+                {connections.map(([startId, endId]) => (
+                  <Connector 
+                    key={`${startId}-${endId}-${connectionsKey}`} 
+                    from={getPortPosition(startId, 'right')} 
+                    to={getPortPosition(endId, 'left')} 
+                  />
+                ))}
+              </svg>
+            </div>
+            
+            {/* Zoom/Pan Instructions */}
+            <div className="absolute bottom-4 left-4 bg-black bg-opacity-70 text-white text-xs px-3 py-2 rounded-lg">
+              <div>Ctrl/Cmd + Scroll: Zoom</div>
+              <div>Alt + Drag or Middle Click: Pan</div>
+            </div>
           </div>
           <ConfigurationPanel
             selectedNode={nodes.find(n => n.id === configuringNodeId) || null}
-            nodeConfig={{}} // Placeholder for node configuration
-            onConfigChange={(newConfig) => console.log(newConfig)} // Placeholder for config change handler
+            nodeConfig={configuringNodeId ? nodeDatasets[configuringNodeId] : null}
+            onConfigChange={(newConfig) => {
+              if (configuringNodeId && newConfig) {
+                setNodeDatasets(prev => ({ ...prev, [configuringNodeId]: newConfig }));
+              }
+            }}
             onClose={() => setConfiguringNodeId(null)}
-            onSave={() => console.log('Save configuration')} // Placeholder for save handler
+            onSave={() => {
+              if (configuringNodeId) {
+                console.log('Configuration saved for node:', configuringNodeId);
+                console.log('Dataset:', nodeDatasets[configuringNodeId]);
+                
+                // Optional: Show success message
+                alert('Configuration saved successfully!');
+                
+                // Optional: Auto-close the panel after saving
+                setConfiguringNodeId(null);
+              }
+            }}
           />
         </main>
       </div>
+      
+      {/* Dataset Selection Modal */}
+      <DatasetSelectionModal
+        isOpen={isDatasetModalOpen}
+        onClose={() => {
+          setIsDatasetModalOpen(false);
+          setPendingNodeData(null);
+        }}
+        onSelect={handleDatasetSelect}
+      />
     </div>
   );
 };

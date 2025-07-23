@@ -29,7 +29,9 @@ if (!fs.existsSync(dbPath)) {
     datasets: [],
     agents: [],
     presets: [],
-    initialFlowNodes: []
+    initialFlowNodes: [],
+    connections: [['node-trigger', 'node-llm'], ['node-llm', 'node-weather'], ['node-llm', 'node-email']],
+    nodeDatasets: {}
   };
   fs.writeFileSync(dbPath, JSON.stringify(initialDb, null, 2));
 }
@@ -294,6 +296,178 @@ app.get('/datasets', (req, res) => {
   }
 });
 
+// Get specific dataset
+app.get('/datasets/:id', (req, res) => {
+  try {
+    const db = readDb();
+    const dataset = db.datasets?.find(d => d.id === req.params.id);
+    
+    if (!dataset) {
+      return res.status(404).json({ error: 'Dataset not found' });
+    }
+    
+    res.json(dataset);
+  } catch (error) {
+    console.error('Error fetching dataset:', error);
+    res.status(500).json({ error: 'Failed to fetch dataset' });
+  }
+});
+
+// Get saved flow
+app.get('/flows/current', (req, res) => {
+  try {
+    const db = readDb();
+    
+    // Use initialFlowNodes as the current flow
+    res.json({
+      nodes: db.initialFlowNodes || [],
+      connections: db.connections || [['node-trigger', 'node-llm'], ['node-llm', 'node-weather'], ['node-llm', 'node-email']],
+      nodeDatasets: db.nodeDatasets || {}
+    });
+    
+  } catch (error) {
+    console.error('Error fetching flow:', error);
+    res.status(500).json({ error: 'Failed to fetch flow' });
+  }
+});
+
+// Add single node endpoint
+app.post('/flows/nodes/add', (req, res) => {
+  try {
+    const { node, dataset } = req.body;
+    console.log('Adding node:', node);
+    
+    const db = readDb();
+    
+    // Initialize arrays if they don't exist
+    if (!db.initialFlowNodes) db.initialFlowNodes = [];
+    if (!db.nodeDatasets) db.nodeDatasets = {};
+    
+    // Add the node to initialFlowNodes
+    db.initialFlowNodes.push(node);
+    
+    // Add dataset if provided
+    if (dataset) {
+      db.nodeDatasets[node.id] = dataset;
+    }
+    
+    writeDb(db);
+    
+    res.json({
+      success: true,
+      message: 'Node added successfully',
+      node: node
+    });
+    
+  } catch (error) {
+    console.error('Add node error:', error);
+    res.status(500).json({
+      error: 'Failed to add node',
+      details: error.message
+    });
+  }
+});
+
+// Delete node endpoint
+app.delete('/flows/nodes/:nodeId', (req, res) => {
+  try {
+    const { nodeId } = req.params;
+    console.log('Deleting node:', nodeId);
+    
+    const db = readDb();
+    
+    // Remove the node from initialFlowNodes
+    if (db.initialFlowNodes) {
+      db.initialFlowNodes = db.initialFlowNodes.filter(n => n.id !== nodeId);
+    }
+    
+    // Remove connections involving this node
+    if (db.connections) {
+      db.connections = db.connections.filter(c => c[0] !== nodeId && c[1] !== nodeId);
+    }
+    
+    // Remove dataset association
+    if (db.nodeDatasets && db.nodeDatasets[nodeId]) {
+      delete db.nodeDatasets[nodeId];
+    }
+    
+    writeDb(db);
+    
+    res.json({
+      success: true,
+      message: 'Node deleted successfully'
+    });
+    
+  } catch (error) {
+    console.error('Delete node error:', error);
+    res.status(500).json({
+      error: 'Failed to delete node',
+      details: error.message
+    });
+  }
+});
+
+// Update connections endpoint
+app.post('/flows/connections', (req, res) => {
+  try {
+    const { connections } = req.body;
+    console.log('Updating connections:', connections);
+    
+    const db = readDb();
+    db.connections = connections;
+    
+    writeDb(db);
+    
+    res.json({
+      success: true,
+      message: 'Connections updated successfully'
+    });
+    
+  } catch (error) {
+    console.error('Update connections error:', error);
+    res.status(500).json({
+      error: 'Failed to update connections',
+      details: error.message
+    });
+  }
+});
+
+// Update node position endpoint
+app.put('/flows/nodes/:nodeId/position', (req, res) => {
+  try {
+    const { nodeId } = req.params;
+    const { position } = req.body;
+    console.log('Updating node position:', nodeId, position);
+    
+    const db = readDb();
+    
+    // Find and update the node position
+    if (db.initialFlowNodes) {
+      const nodeIndex = db.initialFlowNodes.findIndex(n => n.id === nodeId);
+      if (nodeIndex !== -1) {
+        db.initialFlowNodes[nodeIndex].position = position;
+        writeDb(db);
+        
+        res.json({
+          success: true,
+          message: 'Node position updated successfully'
+        });
+      } else {
+        res.status(404).json({ error: 'Node not found' });
+      }
+    } else {
+      res.status(404).json({ error: 'No nodes found' });
+    }
+    
+  } catch (error) {
+    console.error('Update node position error:', error);
+    res.status(500).json({
+      error: 'Failed to update node position',
+      details: error.message
+    });
+  }
+});
+
 // Generic endpoints for other resources
 const resources = ['automations', 'ragModels', 'availableNodes', 'agents', 'presets', 'initialFlowNodes'];
 
@@ -316,9 +490,15 @@ app.listen(PORT, () => {
   console.log('  POST /datasets/generate-mcq');
   console.log('  POST /datasets');
   console.log('  GET  /datasets');
+  console.log('  GET  /datasets/:id');
+  console.log('  GET  /flows/current');
+  console.log('  POST /flows/nodes/add');
+  console.log('  DELETE /flows/nodes/:nodeId');
+  console.log('  POST /flows/connections');
   console.log('  GET  /automations');
   console.log('  GET  /ragModels');
   console.log('  GET  /availableNodes');
+  console.log('  GET  /initialFlowNodes');
 });
 
 export default app;
