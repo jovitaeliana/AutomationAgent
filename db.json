@@ -175,6 +175,76 @@
         }
       ],
       "totalQuestions": 5
+    },
+    {
+      "id": "1753256659644",
+      "name": "AI Dataset",
+      "type": "mcq",
+      "description": "",
+      "createdAt": "2025-07-23T07:44:19.644Z",
+      "questions": [
+        {
+          "id": 1,
+          "question": "What year is Artificial Intelligence considered to have been founded?",
+          "options": [
+            "1956",
+            "1966",
+            "1976",
+            "1986"
+          ],
+          "correctAnswer": "1956",
+          "explanation": "The field of AI was officially founded at the Dartmouth Workshop in 1956."
+        },
+        {
+          "id": 2,
+          "question": "Which of the following is NOT a type of AI?",
+          "options": [
+            "Narrow AI",
+            "General AI",
+            "Superintelligence",
+            "Quantum AI"
+          ],
+          "correctAnswer": "Quantum AI",
+          "explanation": "While Quantum Computing is a field related to AI, 'Quantum AI' is not a standard categorization of AI types."
+        },
+        {
+          "id": 3,
+          "question": "What is the Turing Test designed to evaluate?",
+          "options": [
+            "A machine's ability to perform complex calculations",
+            "A machine's problem-solving skills",
+            "A machine's ability to engage in indistinguishable human conversation",
+            "A machine's learning speed"
+          ],
+          "correctAnswer": "A machine's ability to engage in indistinguishable human conversation",
+          "explanation": "The Turing Test assesses whether a machine can convincingly imitate human conversation."
+        },
+        {
+          "id": 4,
+          "question": "Which type of machine learning uses labeled training data?",
+          "options": [
+            "Unsupervised Learning",
+            "Reinforcement Learning",
+            "Supervised Learning",
+            "Deep Learning"
+          ],
+          "correctAnswer": "Supervised Learning",
+          "explanation": "Supervised learning algorithms learn from data where the inputs and desired outputs are known."
+        },
+        {
+          "id": 5,
+          "question": "Which of the following is NOT an application of AI mentioned in the text?",
+          "options": [
+            "Healthcare diagnostics",
+            "Self-driving cars",
+            "Weather forecasting",
+            "Fraud detection"
+          ],
+          "correctAnswer": "Weather forecasting",
+          "explanation": "While AI could be used in weather prediction, it's not explicitly mentioned as an application in the provided text."
+        }
+      ],
+      "totalQuestions": 5
     }
   ],
   "agents": [],
