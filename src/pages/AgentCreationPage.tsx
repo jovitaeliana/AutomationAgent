@@ -8,18 +8,11 @@ import type { NodeCategory } from '../components/FlowSidebar';
 import FlowNode from '../components/FlowNode';
 import { BackButtonIcon } from '../components/Icons';
 import DatasetSelectionModal from '../components/DatasetSelectionModal';
+import { flowService, availableNodesService } from '../services/api';
+import type { Dataset } from '../lib/supabase';
 
 // Define the page names type
 type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'agent-creation';
-
-interface Dataset {
-  id: string;
-  name: string;
-  type: string;
-  description: string;
-  createdAt: string;
-  totalQuestions: number;
-}
 
 interface AgentCreationPageProps {
   onNavigate: (page: PageName) => void;
@@ -67,72 +60,53 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
   const debouncedSavePosition = useCallback(
     debounce(async (nodeId: string, position: { x: number; y: number }) => {
       try {
-        const response = await fetch(`http://localhost:3002/flows/nodes/${nodeId}/position`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ position }),
-        });
-        
-        if (response.ok) {
-          console.log('Node position saved to database');
-        } else {
-          console.log('Failed to save position to database');
-        }
+        await flowService.updatePosition(nodeId, position);
+        console.log('Node position saved to Supabase');
       } catch (error) {
         console.error('Error saving node position:', error);
       }
-    }, 500), // Wait 500ms after user stops dragging
+    }, 500),
     []
   );
 
-  // Fetch initial data from the mock backend
+  // Fetch initial data from Supabase
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [nodesRes, availableNodesRes] = await Promise.all([
-          fetch('http://localhost:3002/initialFlowNodes'),
-          fetch('http://localhost:3002/availableNodes')
-        ]);
-        
-        if (!nodesRes.ok || !availableNodesRes.ok) throw new Error('Failed to fetch flow data');
-        
         // Load available nodes for sidebar
-        setAvailableNodes(await availableNodesRes.json());
+        const availableNodesData = await availableNodesService.getAll();
+        // Transform the data structure to match your existing format
+        const transformedNodes = availableNodesData.map(node => ({
+          category: node.category,
+          items: node.items
+        }));
+        setAvailableNodes(transformedNodes);
         
-        // Try to load saved flow, fallback to initial nodes if endpoint doesn't exist
-        try {
-          const flowRes = await fetch('http://localhost:3002/flows/current');
-          if (flowRes.ok) {
-            const savedFlow = await flowRes.json();
-            setNodes(savedFlow.nodes || []);
-            // Cast the connections to the proper tuple type
-            const loadedConnections: [string, string][] = (savedFlow.connections || []).map(
-              (conn: any) => [conn[0], conn[1]] as [string, string]
-            );
-            setConnections(loadedConnections);
-            setNodeDatasets(savedFlow.nodeDatasets || {});
-          } else {
-            throw new Error('Flow endpoint not available');
-          }
-        } catch (flowError) {
-          console.log('Using fallback: loading initial nodes');
-          // Load initial nodes if flow endpoint doesn't exist
-          setNodes(await nodesRes.json());
-          // Set initial connections based on fetched nodes
-          const initialConnections: [string, string][] = [['node-trigger', 'node-llm'], ['node-llm', 'node-weather'], ['node-llm', 'node-email']];
-          setConnections(initialConnections);
-        }
+        // Try to load saved flow
+        const savedFlow = await flowService.getCurrent();
+        setNodes(savedFlow.nodes);
+        setConnections(savedFlow.connections);
+        setNodeDatasets(savedFlow.nodeDatasets);
         
       } catch (err) {
         setError(err instanceof Error ? err.message : 'An unknown error');
+        console.error('Error fetching data:', err);
       } finally {
         setIsLoading(false);
       }
     };
     fetchData();
   }, []);
+
+  // Create node function using Supabase
+  const createNode = async (newNode: FlowNodeData, dataset?: Dataset) => {
+    try {
+      await flowService.addNode(newNode, dataset);
+      console.log('Node saved to Supabase');
+    } catch (error) {
+      console.error('Error saving node:', error);
+    }
+  };
 
   // Optimized moveNode function with position saving
   const moveNode = useCallback((nodeId: string, position: { x: number; y: number }) => {
@@ -227,7 +201,7 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
     }
   }, [nodes]);
 
-  // Set up the canvas as a drop target
+  // Updated drop handler using Supabase
   const [, drop] = useDrop(() => ({
     accept: [ItemTypes.NODE, 'canvas-node'],
     drop: (item: any, monitor) => {
@@ -264,32 +238,15 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
             position,
           };
           
-          // Save to backend
-          fetch('http://localhost:3002/flows/nodes/add', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              node: newNode
-            }),
-          }).then(response => {
-            if (response.ok) {
-              console.log('Node saved to database');
-            } else {
-              console.log('Failed to save to database, keeping local changes');
-            }
-          }).catch(error => {
-            console.error('Error saving node:', error);
-          });
-          
+          // Save to Supabase using the service
+          createNode(newNode);
           setNodes(prev => [...prev, newNode]);
         }
       }
     },
   }), [moveNode, zoom, pan]);
 
-  // Handle dataset selection
+  // Handle dataset selection using Supabase
   const handleDatasetSelect = async (dataset: Dataset) => {
     if (pendingNodeData) {
       const nodeId = `node-${Date.now()}`;
@@ -300,29 +257,10 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
         position: pendingNodeData.position,
       };
       
-      try {
-        // Save to backend
-        const response = await fetch('http://localhost:3002/flows/nodes/add', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            node: newNode,
-            dataset: dataset
-          }),
-        });
-        
-        if (response.ok) {
-          console.log('Node saved to database');
-        } else {
-          console.log('Failed to save to database, keeping local changes');
-        }
-      } catch (error) {
-        console.error('Error saving node:', error);
-      }
+      // Save to Supabase using the service
+      await createNode(newNode, dataset);
       
-      // Update local state regardless of backend success
+      // Update local state
       setNodes(prev => [...prev, newNode]);
       setNodeDatasets(prev => ({ ...prev, [nodeId]: dataset }));
       setPendingNodeData(null);
@@ -331,26 +269,18 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
 
   drop(canvasRef);
 
+  // Delete node using Supabase
   const deleteNode = async (nodeId: string) => {
     try {
-      // Delete from backend
-      const response = await fetch(`http://localhost:3002/flows/nodes/${nodeId}`, {
-        method: 'DELETE',
-      });
-      
-      if (response.ok) {
-        console.log('Node deleted from database');
-      } else {
-        console.log('Failed to delete from database, keeping local changes');
-      }
+      await flowService.deleteNode(nodeId);
+      console.log('Node deleted from Supabase');
     } catch (error) {
       console.error('Error deleting node:', error);
     }
     
-    // Update local state regardless of backend success
+    // Update local state
     setNodes(prev => prev.filter(n => n.id !== nodeId));
     setConnections(prev => prev.filter(c => c[0] !== nodeId && c[1] !== nodeId));
-    // Remove dataset association
     setNodeDatasets(prev => {
       const newDatasets = { ...prev };
       delete newDatasets[nodeId];
@@ -363,6 +293,7 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
     setLinkingNodeId(fromNode);
   }, []);
 
+  // Handle connections using Supabase
   const handlePortMouseUp = useCallback(async (e: React.MouseEvent, toNode: string) => {
     e.stopPropagation();
     if (linkingNodeId && linkingNodeId !== toNode) {
@@ -370,18 +301,10 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
       const newConnections: [string, string][] = [...connections, newConnection];
       setConnections(newConnections);
       
-      // Save connections to backend
+      // Save connections to Supabase
       try {
-        await fetch('http://localhost:3002/flows/connections', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            connections: newConnections
-          }),
-        });
-        console.log('Connections saved to database');
+        await flowService.updateConnections(newConnections);
+        console.log('Connections saved to Supabase');
       } catch (error) {
         console.error('Error saving connections:', error);
       }

@@ -12,6 +12,7 @@
     "server:dev": "nodemon server.js"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.52.1",
     "@tailwindcss/postcss": "^4.1.11",
     "cors": "^2.8.5",
     "express": "^5.1.0",

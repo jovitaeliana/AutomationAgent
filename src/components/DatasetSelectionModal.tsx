@@ -1,19 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
-
-interface Dataset {
-  id: string;
-  name: string;
-  type: string;
-  description: string;
-  createdAt: string;
-  totalQuestions: number;
-}
+import { datasetService } from '../services/api';
+import type { Dataset } from '../lib/supabase';
 
 interface DatasetSelectionModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSelect: (dataset: Dataset) => void;
+  onSelect: (dataset: Dataset) => Promise<void>; // Changed to async to match AgentCreationPage
 }
 
 const DatasetSelectionModal: React.FC<DatasetSelectionModalProps> = ({ isOpen, onClose, onSelect }) => {
@@ -30,24 +23,27 @@ const DatasetSelectionModal: React.FC<DatasetSelectionModalProps> = ({ isOpen, o
   const fetchDatasets = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('http://localhost:3002/datasets');
+      setError(null);
       
-      if (!response.ok) {
-        throw new Error('Failed to fetch datasets');
-      }
-      
-      const data = await response.json();
+      // Use Supabase service instead of direct fetch
+      const data = await datasetService.getAll();
       setDatasets(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
+      console.error('Error fetching datasets:', err);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleSelect = (dataset: Dataset) => {
-    onSelect(dataset);
-    onClose();
+  const handleSelect = async (dataset: Dataset) => {
+    try {
+      await onSelect(dataset);
+      onClose();
+    } catch (error) {
+      console.error('Error selecting dataset:', error);
+      setError('Failed to select dataset');
+    }
   };
 
   if (!isOpen) return null;
@@ -106,8 +102,10 @@ const DatasetSelectionModal: React.FC<DatasetSelectionModalProps> = ({ isOpen, o
                           <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded">
                             {dataset.type.toUpperCase()}
                           </span>
-                          <span>{dataset.totalQuestions} questions</span>
-                          <span>{new Date(dataset.createdAt).toLocaleDateString()}</span>
+                          <span className="bg-green-100 text-green-800 px-2 py-1 rounded">
+                            {dataset.total_questions} questions
+                          </span>
+                          <span>{new Date(dataset.created_at).toLocaleDateString()}</span>
                         </div>
                       </div>
                       <button
@@ -120,6 +118,29 @@ const DatasetSelectionModal: React.FC<DatasetSelectionModalProps> = ({ isOpen, o
                         Select
                       </button>
                     </div>
+
+                    {/* Optional: Show preview of questions if available */}
+                    {dataset.questions && dataset.questions.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-gray-200">
+                        <details className="group">
+                          <summary className="cursor-pointer text-sm font-medium text-blue-600 hover:text-blue-800">
+                            Preview Questions ({dataset.questions.length})
+                          </summary>
+                          <div className="mt-2 space-y-1 max-h-20 overflow-y-auto">
+                            {dataset.questions.slice(0, 2).map((question: any, index: number) => (
+                              <div key={index} className="text-xs text-gray-600 pl-4">
+                                <span className="font-medium">{index + 1}.</span> {question.question}
+                              </div>
+                            ))}
+                            {dataset.questions.length > 2 && (
+                              <div className="text-xs text-gray-500 pl-4">
+                                ... and {dataset.questions.length - 2} more questions
+                              </div>
+                            )}
+                          </div>
+                        </details>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

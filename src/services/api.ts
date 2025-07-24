@@ -1,0 +1,450 @@
+// src/services/api.ts - Extended with all services
+import { supabase } from '../lib/supabase';
+import type { Dataset, FlowNode, FlowConnection, Preset, AvailableNode, Automation, RagModel, Agent } from '../lib/supabase';
+
+// Dataset operations (existing)
+export const datasetService = {
+  async getAll(): Promise<Dataset[]> {
+    const { data, error } = await supabase
+      .from('datasets')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    return data || [];
+  },
+
+  async getById(id: string): Promise<Dataset | null> {
+    const { data, error } = await supabase
+      .from('datasets')
+      .select('*')
+      .eq('id', id)
+      .single();
+    
+    if (error) throw error;
+    return data;
+  },
+
+  async create(dataset: {
+    name: string;
+    type: string;
+    description?: string;
+    questions: any[];
+  }): Promise<Dataset> {
+    const { data, error } = await supabase
+      .from('datasets')
+      .insert([dataset])
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  },
+
+  async delete(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('datasets')
+      .delete()
+      .eq('id', id);
+    
+    if (error) throw error;
+  },
+
+  async generateMCQ(file: File, apiKey: string): Promise<{ questions: any[] }> {
+    // Call your Supabase Edge Function instead of direct API call
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('apiKey', apiKey);
+
+    const { data, error } = await supabase.functions.invoke('generate-mcq', {
+      body: formData
+    });
+
+    if (error) {
+      // Fallback to direct API call if Edge Function isn't available
+      const fileContent = await file.text();
+      
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: `Based on the following content, generate 5 multiple choice questions. Return ONLY a valid JSON array with this exact structure, no additional text or markdown formatting:
+
+[
+  {
+    "id": 1,
+    "question": "Question text here?",
+    "options": ["Option A", "Option B", "Option C", "Option D"],
+    "correctAnswer": "Option A",
+    "explanation": "Brief explanation"
+  }
+]
+
+Content to analyze:
+${fileContent.substring(0, 3000)}`
+            }]
+          }],
+          generationConfig: {
+            temperature: 0.7,
+            topK: 40,
+            topP: 0.95,
+            maxOutputTokens: 2048,
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Generation failed: ${response.statusText}`);
+      }
+
+      const apiData = await response.json();
+      const generatedText = apiData.candidates[0].content.parts[0].text;
+      
+      let cleanedText = generatedText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      const jsonMatch = cleanedText.match(/\[[\s\S]*\]/);
+      
+      if (!jsonMatch) {
+        return {
+          questions: [
+            {
+              id: 1,
+              question: "What is the main topic of the uploaded content?",
+              options: ["Data Analysis", "Machine Learning", "Web Development", "General Knowledge"],
+              correctAnswer: "General Knowledge",
+              explanation: "Based on the uploaded content"
+            }
+          ]
+        };
+      }
+      
+      const questions = JSON.parse(jsonMatch[0]);
+      return { questions };
+    }
+
+    return data;
+  }
+};
+
+// Flow operations (existing)
+export const flowService = {
+  async getCurrent(): Promise<{
+    nodes: FlowNode[];
+    connections: [string, string][];
+    nodeDatasets: { [nodeId: string]: Dataset };
+  }> {
+    const { data: nodes, error: nodesError } = await supabase
+      .from('flow_nodes')
+      .select('*')
+      .order('created_at', { ascending: true });
+    
+    if (nodesError) throw nodesError;
+
+    const { data: connections, error: connectionsError } = await supabase
+      .from('flow_connections')
+      .select('from_node, to_node');
+    
+    if (connectionsError) throw connectionsError;
+
+    const { data: nodeDatasetAssocs, error: nodeDatasetError } = await supabase
+      .from('node_datasets')
+      .select(`
+        node_id,
+        datasets (*)
+      `);
+    
+    if (nodeDatasetError) throw nodeDatasetError;
+
+    const nodeDatasets: { [nodeId: string]: Dataset } = {};
+    nodeDatasetAssocs?.forEach((assoc: any) => {
+      if (assoc.datasets) {
+        nodeDatasets[assoc.node_id] = assoc.datasets;
+      }
+    });
+
+    const connectionTuples: [string, string][] = connections?.map(c => [c.from_node, c.to_node]) || [];
+
+    return {
+      nodes: nodes || [],
+      connections: connectionTuples,
+      nodeDatasets
+    };
+  },
+
+  async addNode(node: Omit<FlowNode, 'created_at' | 'updated_at'>, dataset?: Dataset): Promise<void> {
+    const { error: nodeError } = await supabase
+      .from('flow_nodes')
+      .insert([node]);
+    
+    if (nodeError) throw nodeError;
+
+    if (dataset) {
+      const { error: assocError } = await supabase
+        .from('node_datasets')
+        .insert([{
+          node_id: node.id,
+          dataset_id: dataset.id
+        }]);
+      
+      if (assocError) throw assocError;
+    }
+  },
+
+  async deleteNode(nodeId: string): Promise<void> {
+    await supabase
+      .from('flow_connections')
+      .delete()
+      .or(`from_node.eq.${nodeId},to_node.eq.${nodeId}`);
+
+    const { error } = await supabase
+      .from('flow_nodes')
+      .delete()
+      .eq('id', nodeId);
+    
+    if (error) throw error;
+  },
+
+  async updatePosition(nodeId: string, position: { x: number; y: number }): Promise<void> {
+    const { error } = await supabase
+      .from('flow_nodes')
+      .update({ 
+        position,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', nodeId);
+    
+    if (error) throw error;
+  },
+
+  async updateConnections(connections: [string, string][]): Promise<void> {
+    await supabase
+      .from('flow_connections')
+      .delete()
+      .neq('id', '00000000-0000-0000-0000-000000000000');
+
+    if (connections.length > 0) {
+      const connectionData = connections.map(([from_node, to_node]) => ({
+        from_node,
+        to_node
+      }));
+
+      const { error } = await supabase
+        .from('flow_connections')
+        .insert(connectionData);
+      
+      if (error) throw error;
+    }
+  }
+};
+
+// Preset operations (existing)
+export const presetService = {
+  async getAll(): Promise<Preset[]> {
+    const { data, error } = await supabase
+      .from('presets')
+      .select('*')
+      .order('created_at', { ascending: true });
+    
+    if (error) throw error;
+    return data || [];
+  }
+};
+
+// Available nodes operations (existing)
+export const availableNodesService = {
+  async getAll(): Promise<AvailableNode[]> {
+    const { data, error } = await supabase
+      .from('available_nodes')
+      .select('*')
+      .order('created_at', { ascending: true });
+    
+    if (error) throw error;
+    return data || [];
+  }
+};
+
+// NEW: Automation operations
+export const automationService = {
+  async getAll(): Promise<Automation[]> {
+    const { data, error } = await supabase
+      .from('automations')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    return data || [];
+  },
+
+  async getById(id: number): Promise<Automation | null> {
+    const { data, error } = await supabase
+      .from('automations')
+      .select('*')
+      .eq('id', id)
+      .single();
+    
+    if (error) throw error;
+    return data;
+  },
+
+  async create(automation: {
+    title: string;
+    description: string;
+    tags?: string[];
+  }): Promise<Automation> {
+    const { data, error } = await supabase
+      .from('automations')
+      .insert([automation])
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  },
+
+  async update(id: number, updates: Partial<Automation>): Promise<Automation> {
+    const { data, error } = await supabase
+      .from('automations')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  },
+
+  async delete(id: number): Promise<void> {
+    const { error } = await supabase
+      .from('automations')
+      .delete()
+      .eq('id', id);
+    
+    if (error) throw error;
+  }
+};
+
+// NEW: RAG Model operations
+export const ragModelService = {
+  async getAll(): Promise<RagModel[]> {
+    const { data, error } = await supabase
+      .from('rag_models')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    return data || [];
+  },
+
+  async getById(id: number): Promise<RagModel | null> {
+    const { data, error } = await supabase
+      .from('rag_models')
+      .select('*')
+      .eq('id', id)
+      .single();
+    
+    if (error) throw error;
+    return data;
+  },
+
+  async create(ragModel: {
+    title: string;
+    description: string;
+    tags?: string[];
+  }): Promise<RagModel> {
+    const { data, error } = await supabase
+      .from('rag_models')
+      .insert([ragModel])
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  },
+
+  async update(id: number, updates: Partial<RagModel>): Promise<RagModel> {
+    const { data, error } = await supabase
+      .from('rag_models')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  },
+
+  async delete(id: number): Promise<void> {
+    const { error } = await supabase
+      .from('rag_models')
+      .delete()
+      .eq('id', id);
+    
+    if (error) throw error;
+  }
+};
+
+// NEW: Agent operations
+export const agentService = {
+  async getAll(): Promise<Agent[]> {
+    const { data, error } = await supabase
+      .from('agents')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    return data || [];
+  },
+
+  async getById(id: string): Promise<Agent | null> {
+    const { data, error } = await supabase
+      .from('agents')
+      .select('*')
+      .eq('id', id)
+      .single();
+    
+    if (error) throw error;
+    return data;
+  },
+
+  async create(agent: {
+    name: string;
+    description?: string;
+    configuration?: any;
+  }): Promise<Agent> {
+    const { data, error } = await supabase
+      .from('agents')
+      .insert([agent])
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  },
+
+  async update(id: string, updates: Partial<Agent>): Promise<Agent> {
+    const { data, error } = await supabase
+      .from('agents')
+      .update({
+        ...updates,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  },
+
+  async delete(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('agents')
+      .delete()
+      .eq('id', id);
+    
+    if (error) throw error;
+  }
+};
