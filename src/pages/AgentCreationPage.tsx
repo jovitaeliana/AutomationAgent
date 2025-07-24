@@ -8,8 +8,9 @@ import type { NodeCategory } from '../components/FlowSidebar';
 import FlowNode from '../components/FlowNode';
 import { BackButtonIcon } from '../components/Icons';
 import DatasetSelectionModal from '../components/DatasetSelectionModal';
-import { flowService, availableNodesService } from '../services/api';
-import type { Dataset } from '../lib/supabase';
+import AgentSelectionModal from '../components/AgentSelectionModal';
+import { flowService, availableNodesService, nodeConfigService } from '../services/api';
+import type { Dataset, Agent } from '../lib/supabase';
 
 // Define the page names type
 type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'agent-creation';
@@ -56,6 +57,11 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
   const [isPanning, setIsPanning] = useState(false);
   const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 });
 
+  const [isAgentModalOpen, setIsAgentModalOpen] = useState(false);
+  const [pendingAgentNodeData, setPendingAgentNodeData] = useState<any>(null);
+  const [nodeAgents, setNodeAgents] = useState<{[nodeId: string]: Agent}>({});
+  const [allNodeConfigs, setAllNodeConfigs] = useState<{[nodeId: string]: any}>({});
+
   // Create a debounced save function for positions
   const debouncedSavePosition = useCallback(
     debounce(async (nodeId: string, position: { x: number; y: number }) => {
@@ -69,13 +75,12 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
     []
   );
 
-  // Fetch initial data from Supabase
+  // Fetch initial data from Supabase and restore all configurations
   useEffect(() => {
     const fetchData = async () => {
       try {
         // Load available nodes for sidebar
         const availableNodesData = await availableNodesService.getAll();
-        // Transform the data structure to match your existing format
         const transformedNodes = availableNodesData.map(node => ({
           category: node.category,
           items: node.items
@@ -86,7 +91,22 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
         const savedFlow = await flowService.getCurrent();
         setNodes(savedFlow.nodes);
         setConnections(savedFlow.connections);
-        setNodeDatasets(savedFlow.nodeDatasets);
+        setNodeDatasets(savedFlow.nodeDatasets || {});
+        
+        // Load all node configurations from database
+        const nodeConfigurations = await nodeConfigService.getAllConfigurations();
+        console.log('📊 Loaded node configurations:', nodeConfigurations);
+        setAllNodeConfigs(nodeConfigurations);
+        
+        // Separate agent configurations from other configs
+        const agentConfigs: {[nodeId: string]: Agent} = {};
+        Object.entries(nodeConfigurations).forEach(([nodeId, config]) => {
+          if (config?.type === 'agent' && config?.agent) {
+            agentConfigs[nodeId] = config.agent;
+          }
+        });
+        setNodeAgents(agentConfigs);
+        console.log('🤖 Restored agent configurations:', agentConfigs);
         
       } catch (err) {
         setError(err instanceof Error ? err.message : 'An unknown error');
@@ -98,10 +118,30 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
     fetchData();
   }, []);
 
-  // Create node function using Supabase
-  const createNode = async (newNode: FlowNodeData, dataset?: Dataset) => {
+  // Create node function using Supabase with persistent configuration
+  const createNode = async (newNode: FlowNodeData, dataset?: Dataset, initialConfig?: any) => {
     try {
       await flowService.addNode(newNode, dataset);
+      
+      if (initialConfig) {
+        // Save configuration to database
+        await nodeConfigService.saveConfiguration(
+          newNode.id, 
+          initialConfig, 
+          newNode.type
+        );
+        
+        // Update local state
+        setAllNodeConfigs(prev => ({ ...prev, [newNode.id]: initialConfig }));
+        
+        // If it's an agent configuration, also update nodeAgents
+        if (initialConfig.type === 'agent' && initialConfig.agent) {
+          setNodeAgents(prev => ({ ...prev, [newNode.id]: initialConfig.agent }));
+        }
+        
+        console.log('✅ Node configuration saved:', { nodeId: newNode.id, config: initialConfig });
+      }
+      
       console.log('Node saved to Supabase');
     } catch (error) {
       console.error('Error saving node:', error);
@@ -223,13 +263,21 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
         
         // Check if this is a Document Q&A node
         if (item.title.toLowerCase().includes('document q&a') || item.title.toLowerCase().includes('qa')) {
-          // Store pending node data and open dataset selection modal
           setPendingNodeData({
             item,
             position
           });
           setIsDatasetModalOpen(true);
-        } else {
+        } 
+        // Check if this is a Saved Agent node
+        else if (item.title.toLowerCase().includes('saved agent') || item.id === 'agent-saved') {
+          setPendingAgentNodeData({
+            item,
+            position
+          });
+          setIsAgentModalOpen(true);
+        } 
+        else {
           // Create node directly for other types
           const newNode: FlowNodeData = {
             id: `node-${Date.now()}`,
@@ -269,11 +317,51 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
 
   drop(canvasRef);
 
+  // Enhanced handleAgentSelect with persistent configuration
+  const handleAgentSelect = async (agent: Agent) => {
+    if (pendingAgentNodeData) {
+      const nodeId = `node-${Date.now()}`;
+      const newNode: FlowNodeData = {
+        id: nodeId,
+        title: `🤖 ${agent.name}`,
+        type: `Agent: ${agent.configuration?.preset || 'Custom'}`,
+        position: pendingAgentNodeData.position,
+      };
+      
+      // Create comprehensive agent configuration
+      const agentConfig = {
+        type: 'agent',
+        agent: agent,
+        configuration: agent.configuration,
+        name: agent.name,
+        createdAt: new Date().toISOString()
+      };
+      
+      // Save to Supabase with configuration
+      await createNode(newNode, undefined, agentConfig);
+      
+      // Update local state
+      setNodes(prev => [...prev, newNode]);
+      setNodeAgents(prev => ({ ...prev, [nodeId]: agent }));
+      setPendingAgentNodeData(null);
+      
+      console.log('✅ Agent node created with persistent configuration:', {
+        nodeId,
+        agentName: agent.name,
+        configuration: agent.configuration
+      });
+    }
+  };
+
   // Delete node using Supabase
   const deleteNode = async (nodeId: string) => {
     try {
       await flowService.deleteNode(nodeId);
-      console.log('Node deleted from Supabase');
+      
+      // Also delete the node configuration
+      await nodeConfigService.deleteByNodeId(nodeId);
+      
+      console.log('Node and configuration deleted from Supabase');
     } catch (error) {
       console.error('Error deleting node:', error);
     }
@@ -285,6 +373,16 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
       const newDatasets = { ...prev };
       delete newDatasets[nodeId];
       return newDatasets;
+    });
+    setNodeAgents(prev => {
+      const newAgents = { ...prev };
+      delete newAgents[nodeId];
+      return newAgents;
+    });
+    setAllNodeConfigs(prev => {
+      const newConfigs = { ...prev };
+      delete newConfigs[nodeId];
+      return newConfigs;
     });
   };
 
@@ -311,6 +409,35 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
     }
     setLinkingNodeId(null);
   }, [linkingNodeId, connections]);
+
+  // Enhanced configuration change handler with persistence
+  const handleConfigChange = async (newConfig: any) => {
+    if (configuringNodeId && newConfig) {
+      try {
+        // Save to database immediately
+        const selectedNode = nodes.find(n => n.id === configuringNodeId);
+        await nodeConfigService.saveConfiguration(
+          configuringNodeId, 
+          newConfig, 
+          selectedNode?.type || 'unknown'
+        );
+        
+        // Update local state
+        if ('questions' in newConfig) {
+          setNodeDatasets(prev => ({ ...prev, [configuringNodeId]: newConfig }));
+        } else if ('agent' in newConfig || newConfig.type === 'agent') {
+          setNodeAgents(prev => ({ ...prev, [configuringNodeId]: newConfig.agent || newConfig }));
+          setAllNodeConfigs(prev => ({ ...prev, [configuringNodeId]: newConfig }));
+        } else {
+          setAllNodeConfigs(prev => ({ ...prev, [configuringNodeId]: newConfig }));
+        }
+        
+        console.log('✅ Configuration auto-saved:', { nodeId: configuringNodeId, config: newConfig });
+      } catch (error) {
+        console.error('Error saving configuration:', error);
+      }
+    }
+  };
 
   return (
     <div className="min-h-screen flex overflow-hidden bg-gradient-to-br from-app-bg-highlight to-app-bg-content">
@@ -441,25 +568,40 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
               <div>Alt + Drag or Middle Click: Pan</div>
             </div>
           </div>
+          
+          {/* Enhanced Configuration Panel with persistent data */}
           <ConfigurationPanel
             selectedNode={nodes.find(n => n.id === configuringNodeId) || null}
-            nodeConfig={configuringNodeId ? nodeDatasets[configuringNodeId] : null}
-            onConfigChange={(newConfig) => {
-              if (configuringNodeId && newConfig) {
-                setNodeDatasets(prev => ({ ...prev, [configuringNodeId]: newConfig }));
-              }
-            }}
+            nodeConfig={configuringNodeId ? (
+              nodeDatasets[configuringNodeId] || 
+              nodeAgents[configuringNodeId] || 
+              allNodeConfigs[configuringNodeId]
+            ) : null}
+            onConfigChange={handleConfigChange}
             onClose={() => setConfiguringNodeId(null)}
-            onSave={() => {
+            onSave={async () => {
               if (configuringNodeId) {
-                console.log('Configuration saved for node:', configuringNodeId);
-                console.log('Dataset:', nodeDatasets[configuringNodeId]);
+                const config = nodeDatasets[configuringNodeId] || 
+                            nodeAgents[configuringNodeId] || 
+                            allNodeConfigs[configuringNodeId];
                 
-                // Optional: Show success message
-                alert('Configuration saved successfully!');
-                
-                // Optional: Auto-close the panel after saving
-                setConfiguringNodeId(null);
+                try {
+                  const selectedNode = nodes.find(n => n.id === configuringNodeId);
+                  await nodeConfigService.saveConfiguration(
+                    configuringNodeId, 
+                    config, 
+                    selectedNode?.type || 'unknown'
+                  );
+                  
+                  console.log('✅ Configuration saved for node:', configuringNodeId);
+                  console.log('Config data:', config);
+                  
+                  alert('Configuration saved successfully!');
+                  setConfiguringNodeId(null);
+                } catch (error) {
+                  console.error('Error saving configuration:', error);
+                  alert('Error saving configuration. Please try again.');
+                }
               }
             }}
           />
@@ -474,6 +616,16 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
           setPendingNodeData(null);
         }}
         onSelect={handleDatasetSelect}
+      />
+
+      {/* Agent Selection Modal */}
+      <AgentSelectionModal
+        isOpen={isAgentModalOpen}
+        onClose={() => {
+          setIsAgentModalOpen(false);
+          setPendingAgentNodeData(null);
+        }}
+        onSelect={handleAgentSelect}
       />
     </div>
   );
