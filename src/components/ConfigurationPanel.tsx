@@ -7,7 +7,7 @@ import type { Dataset, Agent } from '../lib/supabase';
 
 interface ConfigurationPanelProps {
   selectedNode: FlowNodeData | null;
-  nodeConfig: Dataset | Agent | null;
+  nodeConfig: Dataset | Agent | any | null; // Allow any for node configurations
   onConfigChange: (config: any) => void;
   onClose: () => void;
   onSave: () => void;
@@ -33,12 +33,22 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
 
   // Load existing configuration when nodeConfig changes
   useEffect(() => {
-    if (nodeConfig && 'configuration' in nodeConfig) {
-      // This is an Agent
-      const agent = nodeConfig as Agent;
-      const config = agent.configuration;
-      
-      if (config?.search) {
+    if (nodeConfig) {
+      // Check if it's a direct node configuration object with search
+      if (nodeConfig.search) {
+        setSerpApiKey(nodeConfig.search.serpApiKey || '');
+        setGeminiApiKey(nodeConfig.search.geminiApiKey || '');
+        setSearchScope(nodeConfig.search.searchScope || 'General Web Search');
+        setMaxResults(nodeConfig.search.maxResults?.toString() || '10');
+        setResultProcessing(nodeConfig.search.resultProcessing || 'Summarize with Gemini');
+        setCustomInstructions(nodeConfig.search.customInstructions || '');
+        setFilterCriteria(nodeConfig.search.filterCriteria || '');
+        setSystemPrompt(nodeConfig.systemPrompt || '');
+        setLimitations(nodeConfig.limitations || '');
+      }
+      // Check if it's an Agent object with configuration
+      else if (nodeConfig.configuration && nodeConfig.configuration.search) {
+        const config = nodeConfig.configuration;
         setSerpApiKey(config.search.serpApiKey || '');
         setGeminiApiKey(config.search.geminiApiKey || '');
         setSearchScope(config.search.searchScope || 'General Web Search');
@@ -46,12 +56,16 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
         setResultProcessing(config.search.resultProcessing || 'Summarize with Gemini');
         setCustomInstructions(config.search.customInstructions || '');
         setFilterCriteria(config.search.filterCriteria || '');
+        setSystemPrompt(config.systemPrompt || '');
+        setLimitations(config.limitations || '');
       }
-      
-      setSystemPrompt(config?.systemPrompt || '');
-      setLimitations(config?.limitations || '');
+      // If it's just system prompt and limitations
+      else if (nodeConfig.systemPrompt !== undefined || nodeConfig.limitations !== undefined) {
+        setSystemPrompt(nodeConfig.systemPrompt || '');
+        setLimitations(nodeConfig.limitations || '');
+      }
     } else {
-      // Reset form for new configurations or datasets
+      // Reset form for new configurations
       setSerpApiKey('');
       setGeminiApiKey('');
       setSearchScope('General Web Search');
@@ -68,29 +82,27 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
     if (selectedNode && selectedNode.title.includes('🤖')) {
       // This is an agent node - save agent configuration
       const updatedConfig = {
-        ...nodeConfig,
-        configuration: {
-          preset: 'search',
-          search: {
-            serpApiKey,
-            geminiApiKey,
-            searchScope,
-            maxResults: parseInt(maxResults),
-            resultProcessing,
-            customInstructions,
-            filterCriteria,
-            processingPrompt: `Process search results according to these parameters:
+        preset: 'search',
+        search: {
+          serpApiKey,
+          geminiApiKey,
+          searchScope,
+          maxResults: parseInt(maxResults),
+          resultProcessing,
+          customInstructions,
+          filterCriteria,
+          processingPrompt: `Process search results according to these parameters:
 - Scope: ${searchScope}
 - Custom Instructions: ${customInstructions}
 - Filter Criteria: ${filterCriteria}
 - Processing Type: ${resultProcessing}
 - Max Results: ${maxResults}`
-          },
-          systemPrompt,
-          limitations,
-          updatedAt: new Date().toISOString()
-        }
+        },
+        systemPrompt,
+        limitations,
+        updatedAt: new Date().toISOString()
       };
+      
       onConfigChange(updatedConfig);
     }
     onSave();
@@ -125,7 +137,15 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
             <h4 className="font-medium text-gray-900 mb-2">Node Information</h4>
             <div className="space-y-2 text-sm">
               <div><span className="font-medium">Title:</span> {selectedNode.title}</div>
-              <div><span className="font-medium">Type:</span> {selectedNode.type}</div>
+              <div>
+                <span className="font-medium">Type:</span> {
+                  selectedNode.type
+                    .split(':')
+                    .map(part => part.trim())
+                    .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+                    .join(': ')
+                }
+              </div>
             </div>
           </div>
 
@@ -242,15 +262,15 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
           )}
 
           {/* Dataset Configuration */}
-          {isDatasetNode && nodeConfig && 'questions' in nodeConfig && (
+          {isDatasetNode && nodeConfig && nodeConfig.questions && (
             <div>
               <h4 className="font-medium text-gray-900 mb-4">Dataset Information</h4>
               <div className="bg-gray-50 rounded-lg p-4">
                 <div className="space-y-2 text-sm">
-                  <div><span className="font-medium">Name:</span> {(nodeConfig as Dataset).name}</div>
-                  <div><span className="font-medium">Type:</span> {(nodeConfig as Dataset).type}</div>
-                  <div><span className="font-medium">Questions:</span> {(nodeConfig as Dataset).total_questions}</div>
-                  <div><span className="font-medium">Created:</span> {new Date((nodeConfig as Dataset).created_at).toLocaleDateString()}</div>
+                  <div><span className="font-medium">Name:</span> {nodeConfig.name}</div>
+                  <div><span className="font-medium">Type:</span> {nodeConfig.type}</div>
+                  <div><span className="font-medium">Questions:</span> {nodeConfig.total_questions}</div>
+                  <div><span className="font-medium">Created:</span> {new Date(nodeConfig.created_at).toLocaleDateString()}</div>
                 </div>
               </div>
             </div>

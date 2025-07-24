@@ -1,8 +1,6 @@
-// src/services/api.ts - Extended with all services
 import { supabase } from '../lib/supabase';
 import type { Dataset, FlowNode, FlowConnection, Preset, AvailableNode, Automation, RagModel, Agent } from '../lib/supabase';
 
-// Dataset operations (existing)
 export const datasetService = {
   async getAll(): Promise<Dataset[]> {
     const { data, error } = await supabase
@@ -142,7 +140,6 @@ ${fileContent.substring(0, 3000)}`
   }
 };
 
-// Flow operations (existing)
 export const flowService = {
   async getCurrent(): Promise<{
     nodes: FlowNode[];
@@ -253,7 +250,6 @@ export const flowService = {
   }
 };
 
-// Preset operations (existing)
 export const presetService = {
   async getAll(): Promise<Preset[]> {
     const { data, error } = await supabase
@@ -266,7 +262,6 @@ export const presetService = {
   }
 };
 
-// Available nodes operations (existing)
 export const availableNodesService = {
   async getAll(): Promise<AvailableNode[]> {
     const { data, error } = await supabase
@@ -279,7 +274,6 @@ export const availableNodesService = {
   }
 };
 
-// NEW: Automation operations
 export const automationService = {
   async getAll(): Promise<Automation[]> {
     const { data, error } = await supabase
@@ -339,7 +333,6 @@ export const automationService = {
   }
 };
 
-// NEW: RAG Model operations
 export const ragModelService = {
   async getAll(): Promise<RagModel[]> {
     const { data, error } = await supabase
@@ -399,7 +392,6 @@ export const ragModelService = {
   }
 };
 
-// NEW: Agent operations
 export const agentService = {
   async getAll(): Promise<Agent[]> {
     const { data, error } = await supabase
@@ -459,5 +451,72 @@ export const agentService = {
       .eq('id', id);
     
     if (error) throw error;
+  }
+};
+
+export interface NodeConfiguration {
+  id: string;
+  node_id: string;
+  configuration: any;
+  node_type: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export const nodeConfigService = {
+  async getByNodeId(nodeId: string): Promise<NodeConfiguration | null> {
+    const { data, error } = await supabase
+      .from('node_configurations')
+      .select('*')
+      .eq('node_id', nodeId)
+      .single();
+    
+    if (error && error.code !== 'PGRST116') { // PGRST116 is "not found"
+      throw error;
+    }
+    
+    return data;
+  },
+
+  async saveConfiguration(nodeId: string, configuration: any, nodeType: string): Promise<NodeConfiguration> {
+    const { data, error } = await supabase
+      .from('node_configurations')
+      .upsert({
+        node_id: nodeId,
+        configuration,
+        node_type: nodeType,
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'node_id'
+      })
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  },
+
+  async deleteByNodeId(nodeId: string): Promise<void> {
+    const { error } = await supabase
+      .from('node_configurations')
+      .delete()
+      .eq('node_id', nodeId);
+    
+    if (error) throw error;
+  },
+
+  async getAllConfigurations(): Promise<{[nodeId: string]: any}> {
+    const { data, error } = await supabase
+      .from('node_configurations')
+      .select('*');
+    
+    if (error) throw error;
+    
+    const configurations: {[nodeId: string]: any} = {};
+    data?.forEach(config => {
+      configurations[config.node_id] = config.configuration;
+    });
+    
+    return configurations;
   }
 };
