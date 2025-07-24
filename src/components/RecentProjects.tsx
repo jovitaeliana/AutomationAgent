@@ -1,16 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import ProjectListItem from './ProjectListItem';
+import { automationService, ragModelService } from '../services/api';
+import type { Automation, RagModel } from '../lib/supabase';
 
 // Define the page names type
 type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'agent-creation';
-
-// Define types for the data we expect from the API
-interface Project {
-  id: number;
-  title: string;
-  description: string;
-  tags: string[];
-}
 
 // Add props interface for navigation
 interface RecentProjectsProps {
@@ -20,9 +14,9 @@ interface RecentProjectsProps {
 const RecentProjects: React.FC<RecentProjectsProps> = ({ onNavigate }) => {
   const [activeTab, setActiveTab] = useState<'automations' | 'rag'>('automations');
   
-  // State to hold data fetched from the API
-  const [automations, setAutomations] = useState<Project[]>([]);
-  const [ragModels, setRagModels] = useState<Project[]>([]);
+  // State to hold data fetched from Supabase
+  const [automations, setAutomations] = useState<Automation[]>([]);
+  const [ragModels, setRagModels] = useState<RagModel[]>([]);
 
   // State to handle loading and errors
   const [isLoading, setIsLoading] = useState(true);
@@ -32,21 +26,19 @@ const RecentProjects: React.FC<RecentProjectsProps> = ({ onNavigate }) => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [automationsResponse, ragModelsResponse] = await Promise.all([
-          fetch('http://localhost:3002/automations'),
-          fetch('http://localhost:3002/ragModels')
+        setIsLoading(true);
+        setError(null);
+
+        // Fetch data from Supabase using our services
+        const [automationsData, ragModelsData] = await Promise.all([
+          automationService.getAll(),
+          ragModelService.getAll()
         ]);
-
-        if (!automationsResponse.ok || !ragModelsResponse.ok) {
-          throw new Error('Network response was not ok');
-        }
-
-        const automationsData = await automationsResponse.json();
-        const ragModelsData = await ragModelsResponse.json();
 
         setAutomations(automationsData);
         setRagModels(ragModelsData);
       } catch (error) {
+        console.error('Error fetching projects:', error);
         if (error instanceof Error) {
           setError(error.message);
         } else {
@@ -65,7 +57,17 @@ const RecentProjects: React.FC<RecentProjectsProps> = ({ onNavigate }) => {
   }
 
   if (error) {
-    return <p className="text-center text-red-500">Error: {error}</p>;
+    return (
+      <div className="text-center">
+        <p className="text-red-500 mb-4">Error: {error}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+        >
+          Retry
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -77,23 +79,39 @@ const RecentProjects: React.FC<RecentProjectsProps> = ({ onNavigate }) => {
             onClick={() => setActiveTab('automations')}
             className={`px-4 py-2 font-semibold transition-colors ${activeTab === 'automations' ? "text-primary border-b-2 border-primary" : "text-gray-500 border-b-2 border-transparent hover:text-primary"}`}
           >
-            Automations
+            Automations ({automations.length})
           </button>
           <button
             onClick={() => setActiveTab('rag')}
             className={`px-4 py-2 font-semibold transition-colors ${activeTab === 'rag' ? "text-primary border-b-2 border-primary" : "text-gray-500 border-b-2 border-transparent hover:text-primary"}`}
           >
-            RAG Models
+            RAG Models ({ragModels.length})
           </button>
         </div>
       </div>
 
       <div className="bg-app-bg-content rounded-xl border border-app-border">
+        {(activeTab === 'automations' && automations.length === 0) || 
+         (activeTab === 'rag' && ragModels.length === 0) ? (
+          <div className="text-center py-12">
+            <div className="text-4xl mb-4">
+              {activeTab === 'automations' ? '⚡' : '🧠'}
+            </div>
+            <div className="text-app-text-muted mb-2">
+              No {activeTab === 'automations' ? 'automations' : 'RAG models'} yet
+            </div>
+            <p className="text-sm text-app-text-subtle">
+              Create your first {activeTab === 'automations' ? 'automation' : 'RAG model'} to get started!
+            </p>
+          </div>
+        ) : (
           <div className="divide-y divide-app-border">
             {activeTab === 'automations' && automations.map(project => 
                 <ProjectListItem 
                   key={project.id} 
-                  {...project} 
+                  title={project.title} 
+                  description={project.description}
+                  tags={project.tags}
                   onNavigate={onNavigate}
                   projectType="automation"
                 />
@@ -101,12 +119,15 @@ const RecentProjects: React.FC<RecentProjectsProps> = ({ onNavigate }) => {
             {activeTab === 'rag' && ragModels.map(project => 
                 <ProjectListItem 
                   key={project.id} 
-                  {...project} 
+                  title={project.title}
+                  description={project.description} 
+                  tags={project.tags}
                   onNavigate={onNavigate}
                   projectType="rag"
                 />
             )}
           </div>
+        )}
       </div>
     </section>
   );
