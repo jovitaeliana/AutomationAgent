@@ -313,6 +313,45 @@ app.get('/datasets/:id', (req, res) => {
   }
 });
 
+// Delete dataset endpoint
+app.delete('/datasets/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log('Deleting dataset:', id);
+    
+    const db = readDb();
+    
+    if (!db.datasets) {
+      return res.status(404).json({ error: 'No datasets found' });
+    }
+    
+    const datasetIndex = db.datasets.findIndex(d => d.id === id);
+    
+    if (datasetIndex === -1) {
+      return res.status(404).json({ error: 'Dataset not found' });
+    }
+    
+    // Remove the dataset
+    const deletedDataset = db.datasets.splice(datasetIndex, 1)[0];
+    
+    writeDb(db);
+    
+    console.log('Dataset deleted successfully:', deletedDataset.name);
+    res.json({
+      success: true,
+      message: 'Dataset deleted successfully',
+      deletedDataset: { id: deletedDataset.id, name: deletedDataset.name }
+    });
+    
+  } catch (error) {
+    console.error('Delete dataset error:', error);
+    res.status(500).json({
+      error: 'Failed to delete dataset',
+      details: error.message
+    });
+  }
+});
+
 // Get saved flow
 app.get('/flows/current', (req, res) => {
   try {

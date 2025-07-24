@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import PageHeader from '../components/PageHeader';
 import { InputField, SelectField, TextareaField } from '../components/FormField';
-import ChatPanel from '../components/ChatPanel';
 import FileUploadButton from '../components/FileUploadButton';
 import { BackButtonIcon } from '../components/Icons';
 
@@ -10,6 +9,16 @@ type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-da
 
 interface UploadDatasetPageProps {
   onNavigate: (page: PageName) => void;
+}
+
+interface Dataset {
+  id: string;
+  name: string;
+  type: string;
+  description: string;
+  createdAt: string;
+  totalQuestions: number;
+  questions?: any[];
 }
 
 const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => {
@@ -29,8 +38,61 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
   const [generatedMCQ, setGeneratedMCQ] = useState<any[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   
+  // State for existing datasets
+  const [existingDatasets, setExistingDatasets] = useState<Dataset[]>([]);
+  const [isLoadingDatasets, setIsLoadingDatasets] = useState(true);
+  
   // Your Gemini API key - replace with your actual key
   const GEMINI_API_KEY = 'AIzaSyDwMjzuAfke1ZUDl0xUaUpjsCKNiOU1UPo';
+
+  // Fetch existing datasets on component mount
+  const fetchDatasets = async () => {
+    try {
+      setIsLoadingDatasets(true);
+      const response = await fetch('http://localhost:3002/datasets');
+      if (response.ok) {
+        const datasets = await response.json();
+        setExistingDatasets(datasets);
+      } else {
+        console.error('Failed to fetch datasets');
+      }
+    } catch (error) {
+      console.error('Error fetching datasets:', error);
+    } finally {
+      setIsLoadingDatasets(false);
+    }
+  };
+
+  // Load datasets on component mount
+  useEffect(() => {
+    fetchDatasets();
+  }, []);
+
+  // Handle dataset deletion
+  const handleDeleteDataset = async (datasetId: string) => {
+    if (!confirm('Are you sure you want to delete this dataset? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:3002/datasets/${datasetId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        setUploadStatus('Dataset deleted successfully!');
+        // Refresh the datasets list
+        fetchDatasets();
+        setTimeout(() => setUploadStatus(''), 3000);
+      } else {
+        throw new Error('Failed to delete dataset');
+      }
+    } catch (error) {
+      console.error('Delete error:', error);
+      setUploadStatus(`Delete failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setTimeout(() => setUploadStatus(''), 5000);
+    }
+  };
 
   // Handle file selection
   const handleDatasetFileSelect = (file: File) => {
@@ -150,6 +212,9 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
       console.log('Save successful:', result);
       setUploadStatus('Dataset saved successfully!');
       
+      // Refresh datasets list after successful save
+      fetchDatasets();
+      
       // Reset form after successful save
       setTimeout(() => {
         setDatasetName('');
@@ -198,12 +263,12 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
         <form id="dataset-form" onSubmit={handleSubmit} className="space-y-8">
           {/* Upload Status */}
           {uploadStatus && (
-            <div className={`p-4 rounded-lg border ${
-              uploadStatus.includes('successfully') 
-                ? 'bg-green-50 border-green-200 text-green-800' 
-                : uploadStatus.includes('failed') || uploadStatus.includes('Please select')
-                ? 'bg-red-50 border-red-200 text-red-800'
-                : 'bg-blue-50 border-blue-200 text-blue-800'
+            <div className={`p-4 rounded-lg border-2 font-medium ${
+              uploadStatus.toLowerCase().includes('success')
+                ? 'bg-green-100 border-green-500 text-green-800'
+                : uploadStatus.toLowerCase().includes('failed') || uploadStatus.toLowerCase().startsWith('please')
+                ? 'bg-red-100 border-red-500 text-red-800'
+                : 'bg-blue-100 border-blue-500 text-blue-800'
             }`}>
               {uploadStatus}
             </div>
@@ -292,7 +357,7 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
               {generatedMCQ.length > 0 ? (
                 <div className="bg-app-bg-highlight rounded-lg p-4 h-full">
                   <h2 className="text-xl font-semibold text-app-text mb-4">Generated Questions ({generatedMCQ.length})</h2>
-                  <div className="overflow-y-auto max-h-110">
+                  <div className="overflow-y-auto max-h-96">
                     {generatedMCQ.map((q, index) => (
                       <div key={index} className="mb-4 p-3 bg-white rounded border">
                         <p className="font-medium text-sm">{index + 1}. {q.question}</p>
@@ -317,6 +382,100 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Existing Datasets Section */}
+          <div className="bg-app-bg-content rounded-xl border border-app-border p-6 hover:shadow-lg transition-all">
+            <h2 className="text-2xl font-semibold text-app-text mb-6">Existing Datasets</h2>
+            
+            {isLoadingDatasets ? (
+              <div className="text-center py-8">
+                <div className="text-app-text-muted">Loading datasets...</div>
+              </div>
+            ) : existingDatasets.length === 0 ? (
+              <div className="text-center py-8">
+                <div className="text-4xl mb-4">📊</div>
+                <p className="text-app-text-muted">No datasets found</p>
+                <p className="text-sm text-app-text-subtle mt-2">Create your first dataset above!</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {existingDatasets.map((dataset: Dataset) => (
+                  <div key={dataset.id} className="border border-app-border rounded-lg p-4 hover:bg-app-bg-highlight transition-colors">
+                    <div className="flex flex-wrap md:flex-nowrap items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center space-x-3 mb-2">
+                          <h3 className="text-lg font-semibold text-app-text">{dataset.name}</h3>
+                          <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded">
+                            {dataset.type.toUpperCase()}
+                          </span>
+                          <span className="bg-green-100 text-green-800 text-xs font-medium px-2 py-1 rounded">
+                            {dataset.totalQuestions} questions
+                          </span>
+                        </div>
+                        
+                        {dataset.description && (
+                          <p className="text-app-text-muted text-sm mb-3">{dataset.description}</p>
+                        )}
+                        
+                        <div className="flex items-center space-x-4 text-xs text-app-text-subtle">
+                          <span>Created: {new Date(dataset.createdAt).toLocaleDateString()}</span>
+                          <span>ID: {dataset.id}</span>
+                        </div>
+                        
+                        {dataset.questions && dataset.questions.length > 0 && (
+                          <div className="mt-3">
+                            <details className="group">
+                              <summary className="cursor-pointer text-sm font-medium text-blue-600 hover:text-blue-800">
+                                View All Questions ({dataset.questions.length})
+                              </summary>
+                              <div className="mt-2 pl-4 border-l-2 border-blue-200 max-h-60 overflow-y-auto bg-gray-50 rounded p-3 w-282">
+                                {dataset.questions.map((q: any, index: number) => (
+                                  <div key={index} className="mb-3 pb-3 border-b border-gray-200 last:border-b-0 text-sm">
+                                    <p className="font-medium text-app-text mb-2">{index + 1}. {q.question}</p>
+                                    {q.options && (
+                                      <div className="ml-4 space-y-1">
+                                        {q.options.map((option: string, optIndex: number) => (
+                                          <div 
+                                            key={optIndex} 
+                                            className={`text-xs ${
+                                              option === q.correctAnswer 
+                                                ? 'text-green-700 font-semibold bg-green-100 px-2 py-1 rounded' 
+                                                : 'text-gray-600'
+                                            }`}
+                                          >
+                                            {String.fromCharCode(65 + optIndex)}. {option} {option === q.correctAnswer && '✓'}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                    {q.explanation && (
+                                      <div className="mt-2 ml-4 text-xs text-gray-500 italic">
+                                        💡 {q.explanation}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </details>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="flex space-x-2 ml-4">
+                        <button
+                          type="button"  
+                          onClick={() => handleDeleteDataset(dataset.id)}
+                          className="px-3 py-1 text-sm font-medium text-red-600 border border-red-300 rounded hover:bg-red-50 transition-colors"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </form>
       </main>

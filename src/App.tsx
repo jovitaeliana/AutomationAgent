@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 
-// Import all page components
 import HomePage from './pages/HomePage';
 import ConfigureAgentPage from './pages/ConfigureAgentPage';
 import AppChoicePage from './pages/AppChoicePage';
@@ -8,13 +7,11 @@ import UploadDatasetPage from './pages/UploadDatasetPage';
 import AgentCreationPage from './pages/AgentCreationPage';
 import UploadTestingFilePage from './pages/DatasetTestingPage';
 
-// Define the possible page names for type safety
 type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'agent-creation';
 
 function App() {
   const [page, setPage] = useState<PageName>('home');
 
-  // Initialize page based on URL hash on mount
   useEffect(() => {
     const hash = window.location.hash.slice(1) as PageName;
     const validPages: PageName[] = ['home', 'configure', 'choice', 'dataset-testing', 'upload-dataset', 'agent-creation'];
@@ -23,7 +20,7 @@ function App() {
     }
   }, []);
 
-  // Listen for browser back/forward button events
+  
   useEffect(() => {
     const handlePopState = () => {
       const hash = window.location.hash.slice(1) as PageName;
@@ -39,18 +36,15 @@ function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  // Scroll to top whenever the page changes
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [page]);
 
-  // Navigation function that updates both state and URL
   const navigate = (newPage: PageName) => {
     setPage(newPage);
     window.history.pushState({}, '', `#${newPage}`);
   };
 
-  // Helper function to render the correct page based on state
   const renderPage = () => {
     switch (page) {
       case 'home':
