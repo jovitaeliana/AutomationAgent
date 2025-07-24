@@ -107,90 +107,20 @@
       "type": "Question & Answer"
     },
     {
-      "id": "1753256166797",
-      "name": "test",
-      "type": "mcq",
-      "description": "Random questions for testing",
-      "createdAt": "2025-07-23T07:36:06.797Z",
-      "questions": [
-        {
-          "id": 1,
-          "question": "What is the capital city of Singapore?",
-          "options": [
-            "Singapore",
-            "Kuala Lumpur",
-            "Bangkok",
-            "Jakarta"
-          ],
-          "correctAnswer": "Singapore",
-          "explanation": "Singapore is a city-state, meaning its capital is the same as the country itself."
-        },
-        {
-          "id": 2,
-          "question": "Which programming language is commonly used for web development?",
-          "options": [
-            "Python",
-            "Java",
-            "JavaScript",
-            "C++"
-          ],
-          "correctAnswer": "JavaScript",
-          "explanation": "JavaScript is a fundamental language for front-end web development and increasingly used in back-end development as well."
-        },
-        {
-          "id": 3,
-          "question": "What is the sum of 15 and 27?",
-          "options": [
-            "32",
-            "42",
-            "37",
-            "22"
-          ],
-          "correctAnswer": "42",
-          "explanation": "Adding 15 and 27 results in 42."
-        },
-        {
-          "id": 4,
-          "question": "Who is the author of the dystopian novel '1984'?",
-          "options": [
-            "Aldous Huxley",
-            "Ray Bradbury",
-            "George Orwell",
-            "Ernest Hemingway"
-          ],
-          "correctAnswer": "George Orwell",
-          "explanation": "George Orwell wrote the influential novel '1984'."
-        },
-        {
-          "id": 5,
-          "question": "Which planet holds the title of the largest in our solar system?",
-          "options": [
-            "Mars",
-            "Earth",
-            "Saturn",
-            "Jupiter"
-          ],
-          "correctAnswer": "Jupiter",
-          "explanation": "Jupiter is significantly larger than any other planet in our solar system."
-        }
-      ],
-      "totalQuestions": 5
-    },
-    {
-      "id": "1753256659644",
-      "name": "AI Dataset",
+      "id": "1753327260899",
+      "name": "ai dataset",
       "type": "mcq",
       "description": "",
-      "createdAt": "2025-07-23T07:44:19.644Z",
+      "createdAt": "2025-07-24T03:21:00.899Z",
       "questions": [
         {
           "id": 1,
-          "question": "What year is Artificial Intelligence considered to have been founded?",
+          "question": "What year was the field of Artificial Intelligence founded?",
           "options": [
+            "1946",
             "1956",
             "1966",
-            "1976",
-            "1986"
+            "1976"
           ],
           "correctAnswer": "1956",
           "explanation": "The field of AI was officially founded at the Dartmouth Workshop in 1956."
@@ -205,18 +135,18 @@
             "Quantum AI"
           ],
           "correctAnswer": "Quantum AI",
-          "explanation": "While Quantum Computing is a field related to AI, 'Quantum AI' is not a standard categorization of AI types."
+          "explanation": "While quantum computing may be used in AI, 'Quantum AI' isn't a standard category of AI types discussed in the text."
         },
         {
           "id": 3,
-          "question": "What is the Turing Test designed to evaluate?",
+          "question": "What is the Turing Test designed to measure?",
           "options": [
-            "A machine's ability to perform complex calculations",
-            "A machine's problem-solving skills",
-            "A machine's ability to engage in indistinguishable human conversation",
-            "A machine's learning speed"
+            "A machine's ability to solve complex mathematical problems",
+            "A machine's ability to learn from experience",
+            "A machine's ability to engage in human-like conversation",
+            "A machine's ability to perform physical tasks"
           ],
-          "correctAnswer": "A machine's ability to engage in indistinguishable human conversation",
+          "correctAnswer": "A machine's ability to engage in human-like conversation",
           "explanation": "The Turing Test assesses whether a machine can convincingly imitate human conversation."
         },
         {
@@ -235,13 +165,13 @@
           "id": 5,
           "question": "Which of the following is NOT an application of AI mentioned in the text?",
           "options": [
-            "Healthcare diagnostics",
-            "Self-driving cars",
-            "Weather forecasting",
-            "Fraud detection"
+            "Healthcare",
+            "Manufacturing",
+            "Finance",
+            "Entertainment"
           ],
-          "correctAnswer": "Weather forecasting",
-          "explanation": "While AI could be used in weather prediction, it's not explicitly mentioned as an application in the provided text."
+          "correctAnswer": "Manufacturing",
+          "explanation": "While AI is used in many industries, manufacturing is not explicitly listed as an application in the provided text."
         }
       ],
       "totalQuestions": 5
@@ -283,8 +213,8 @@
       "title": "🌦️ Weather API",
       "type": "Action",
       "position": {
-        "x": 600,
-        "y": 100
+        "x": 623,
+        "y": 95
       }
     },
     {
@@ -292,8 +222,8 @@
       "title": "📧 Send Email",
       "type": "Action",
       "position": {
-        "x": 608,
-        "y": 303
+        "x": 627,
+        "y": 287
       }
     },
     {

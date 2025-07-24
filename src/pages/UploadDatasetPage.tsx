@@ -261,8 +261,8 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
 
       <main className="max-w-7xl mx-auto px-8 py-12">
         <form id="dataset-form" onSubmit={handleSubmit} className="space-y-8">
-          {/* Upload Status */}
-          {uploadStatus && (
+          {/* Upload Status at TOP - for form validation errors and general messages */}
+          {uploadStatus && !uploadStatus.toLowerCase().includes('generated') && !uploadStatus.toLowerCase().includes('mcq') && (
             <div className={`p-4 rounded-lg border-2 font-medium ${
               uploadStatus.toLowerCase().includes('success')
                 ? 'bg-green-100 border-green-500 text-green-800'
@@ -304,6 +304,20 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
           {/* File Uploads & MCQ Generation */}
           <div className="bg-app-bg-content rounded-xl border border-app-border p-6 hover:shadow-lg transition-all flex flex-col md:flex-row gap-8">
             <div className="flex-1 space-y-8">
+
+              {/* Upload Status ABOVE UPLOAD BLOCK - specifically for MCQ generation success */}
+              {uploadStatus && (uploadStatus.toLowerCase().includes('generated') || uploadStatus.toLowerCase().includes('mcq')) && (
+                <div className={`p-4 rounded-lg border-2 font-medium ${
+                  uploadStatus.toLowerCase().includes('success')
+                    ? 'bg-green-100 border-green-500 text-green-800'
+                    : uploadStatus.toLowerCase().includes('failed') || uploadStatus.toLowerCase().startsWith('please')
+                    ? 'bg-red-100 border-red-500 text-red-800'
+                    : 'bg-blue-100 border-blue-500 text-blue-800'
+                }`}>
+                  {uploadStatus}
+                </div>
+              )}
+
               <div>
                 <h2 className="text-2xl font-semibold text-app-text mb-4">Upload Dataset File *</h2>
                 <p className="block text-sm font-medium text-app-text mb-2">
@@ -357,7 +371,7 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
               {generatedMCQ.length > 0 ? (
                 <div className="bg-app-bg-highlight rounded-lg p-4 h-full">
                   <h2 className="text-xl font-semibold text-app-text mb-4">Generated Questions ({generatedMCQ.length})</h2>
-                  <div className="overflow-y-auto max-h-96">
+                  <div className="overflow-y-auto max-h-130">
                     {generatedMCQ.map((q, index) => (
                       <div key={index} className="mb-4 p-3 bg-white rounded border">
                         <p className="font-medium text-sm">{index + 1}. {q.question}</p>

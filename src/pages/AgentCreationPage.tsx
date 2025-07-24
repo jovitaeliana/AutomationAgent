@@ -25,6 +25,22 @@ interface AgentCreationPageProps {
   onNavigate: (page: PageName) => void;
 }
 
+// Debounce utility
+const debounce = <T extends (...args: any[]) => any>(
+  func: T, 
+  wait: number
+): ((...args: Parameters<T>) => void) => {
+  let timeout: number | null = null;
+  return function executedFunction(...args: Parameters<T>): void {
+    const later = () => {
+      timeout = null;
+      func(...args);
+    };
+    if (timeout) clearTimeout(timeout);
+    timeout = window.setTimeout(later, wait);
+  };
+};
+
 const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => {
   const [nodes, setNodes] = useState<FlowNodeData[]>([]);
   const [connections, setConnections] = useState<[string, string][]>([]);
@@ -46,16 +62,32 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 });
-  const [connectionsKey, setConnectionsKey] = useState(0); // Force re-render connections
 
-  // Force connections to re-render when nodes are loaded
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setConnectionsKey(prev => prev + 1);
-    }, 100); // Small delay to ensure nodes are rendered
-    
-    return () => clearTimeout(timer);
-  }, [nodes, zoom, pan]);
+  // Create a debounced save function for positions
+  const debouncedSavePosition = useCallback(
+    debounce(async (nodeId: string, position: { x: number; y: number }) => {
+      try {
+        const response = await fetch(`http://localhost:3002/flows/nodes/${nodeId}/position`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ position }),
+        });
+        
+        if (response.ok) {
+          console.log('Node position saved to database');
+        } else {
+          console.log('Failed to save position to database');
+        }
+      } catch (error) {
+        console.error('Error saving node position:', error);
+      }
+    }, 500), // Wait 500ms after user stops dragging
+    []
+  );
+
+  // Fetch initial data from the mock backend
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -102,25 +134,15 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
     fetchData();
   }, []);
 
-  // Use useCallback to memoize the moveNode function for performance
-  const moveNode = useCallback(async (nodeId: string, position: { x: number; y: number }) => {
+  // Optimized moveNode function with position saving
+  const moveNode = useCallback((nodeId: string, position: { x: number; y: number }) => {
     setNodes((prevNodes) =>
       prevNodes.map((node) => (node.id === nodeId ? { ...node, position } : node))
     );
     
-    // Save position to backend
-    try {
-      await fetch(`http://localhost:3002/flows/nodes/${nodeId}/position`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ position }),
-      });
-    } catch (error) {
-      console.error('Error saving node position:', error);
-    }
-  }, []);
+    // Save position to backend with debouncing
+    debouncedSavePosition(nodeId, position);
+  }, [debouncedSavePosition]);
 
   // Handle wheel zoom
   const handleWheel = useCallback((e: React.WheelEvent) => {
@@ -214,8 +236,8 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
       if (!canvasRef.current || !offset || !delta) return;
 
       if (monitor.getItemType() === 'canvas-node') {
-        const left = Math.round((item.x + delta.x - pan.x) / zoom);
-        const top = Math.round((item.y + delta.y - pan.y) / zoom);
+        const left = Math.round(item.x + delta.x);
+        const top = Math.round(item.y + delta.y);
         moveNode(item.id, { x: left, y: top });
       } else {
         const canvasRect = canvasRef.current.getBoundingClientRect();
@@ -265,7 +287,7 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
         }
       }
     },
-  }), [moveNode, pan, zoom]);
+  }), [moveNode, zoom, pan]);
 
   // Handle dataset selection
   const handleDatasetSelect = async (dataset: Dataset) => {
@@ -336,12 +358,12 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
     });
   };
 
-  const handlePortMouseDown = (e: React.MouseEvent, fromNode: string) => {
+  const handlePortMouseDown = useCallback((e: React.MouseEvent, fromNode: string) => {
     e.stopPropagation();
     setLinkingNodeId(fromNode);
-  };
+  }, []);
 
-  const handlePortMouseUp = async (e: React.MouseEvent, toNode: string) => {
+  const handlePortMouseUp = useCallback(async (e: React.MouseEvent, toNode: string) => {
     e.stopPropagation();
     if (linkingNodeId && linkingNodeId !== toNode) {
       const newConnection: [string, string] = [linkingNodeId, toNode];
@@ -365,43 +387,7 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
       }
     }
     setLinkingNodeId(null);
-  };
-  
-  const getPortPosition = (nodeId: string, side: 'left' | 'right') => {
-    // First try to get actual DOM element position (more accurate)
-    const nodeEl = document.getElementById(nodeId);
-    if (nodeEl) {
-      const rect = nodeEl.getBoundingClientRect();
-      const canvasRect = canvasRef.current?.getBoundingClientRect();
-      if (canvasRect) {
-        // Convert screen coordinates back to canvas coordinates
-        const canvasX = (rect.left - canvasRect.left - pan.x) / zoom;
-        const canvasY = (rect.top - canvasRect.top - pan.y) / zoom;
-        
-        const nodeWidth = rect.width / zoom;
-        const nodeHeight = rect.height / zoom;
-        
-        return {
-          x: side === 'left' ? canvasX : canvasX + nodeWidth,
-          y: canvasY + nodeHeight / 2
-        };
-      }
-    }
-    
-    // Fallback to node data positions if DOM element not available
-    const node = nodes.find(n => n.id === nodeId);
-    if (!node) return { x: 0, y: 0 };
-    
-    const nodeWidth = 200; // Approximate node width
-    const nodeHeight = 100; // Approximate node height
-    
-    const y = node.position.y + nodeHeight / 2;
-    const x = side === 'left' 
-      ? node.position.x
-      : node.position.x + nodeWidth;
-    
-    return { x, y };
-  };
+  }, [linkingNodeId, connections]);
 
   return (
     <div className="min-h-screen flex overflow-hidden bg-gradient-to-br from-app-bg-highlight to-app-bg-content">
@@ -458,43 +444,62 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
               style={{
                 transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
                 transformOrigin: '0 0',
-                width: '5000px', // Large canvas area
-                height: '5000px',
+                width: '100%',
+                height: '100%',
                 position: 'relative'
               }}
             >
+              <svg 
+                className="absolute top-0 left-0 pointer-events-none" 
+                style={{ 
+                  width: '100%', 
+                  height: '100%',
+                  overflow: 'visible'
+                }}
+              >
+                {connections.map(([startId, endId]) => {
+                  // Calculate positions based on node positions (not DOM elements)
+                  const startNode = nodes.find(n => n.id === startId);
+                  const endNode = nodes.find(n => n.id === endId);
+                  
+                  if (!startNode || !endNode) return null;
+                  
+                  const from = {
+                    x: startNode.position.x + 200, // Right side of start node
+                    y: startNode.position.y + 50   // Center height of node
+                  };
+                  
+                  const to = {
+                    x: endNode.position.x,         // Left side of end node
+                    y: endNode.position.y + 50     // Center height of node
+                  };
+                  
+                  return (
+                    <Connector 
+                      key={`${startId}-${endId}`} 
+                      from={from} 
+                      to={to}
+                    />
+                  );
+                })}
+              </svg>
+              
               {nodes.map(node => (
                 <FlowNode
                   key={node.id}
                   node={node}
                   isSelected={selectedNodeId === node.id}
-                  onSelect={(e: React.MouseEvent, id: string) => { e.stopPropagation(); setSelectedNodeId(id); }}
-                  onMove={(nodeId: string, position: { x: number; y: number }) => moveNode(nodeId, position)}
+                  onSelect={(e: React.MouseEvent, id: string) => { 
+                    e.stopPropagation(); 
+                    setSelectedNodeId(id); 
+                  }}
+                  onMove={moveNode}
                   onDelete={deleteNode}
                   onConfigure={setConfiguringNodeId}
                   onPortMouseDown={handlePortMouseDown}
                   onPortMouseUp={handlePortMouseUp}
                 />
               ))}
-              
-              {/* SVG for connections - now inside the transformed container */}
-              <svg 
-                key={connectionsKey} // Force re-render when key changes
-                className="absolute top-0 left-0 pointer-events-none" 
-                style={{ 
-                  width: '5000px', 
-                  height: '5000px',
-                  overflow: 'visible'
-                }}
-              >
-                {connections.map(([startId, endId]) => (
-                  <Connector 
-                    key={`${startId}-${endId}-${connectionsKey}`} 
-                    from={getPortPosition(startId, 'right')} 
-                    to={getPortPosition(endId, 'left')} 
-                  />
-                ))}
-              </svg>
             </div>
             
             {/* Zoom/Pan Instructions */}
