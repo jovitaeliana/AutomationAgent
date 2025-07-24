@@ -51,17 +51,32 @@ export const datasetService = {
   },
 
   async generateMCQ(file: File, apiKey: string): Promise<{ questions: any[] }> {
-    // Call your Supabase Edge Function instead of direct API call
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('apiKey', apiKey);
+    try {
+      console.log('Calling Supabase Edge Function for MCQ generation...');
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('apiKey', apiKey);
 
-    const { data, error } = await supabase.functions.invoke('generate-mcq', {
-      body: formData
-    });
+      const { data, error } = await supabase.functions.invoke('generate-mcq', {
+        body: formData
+      });
 
-    if (error) {
-      // Fallback to direct API call if Edge Function isn't available
+      if (error) {
+        console.error('Edge function error:', error);
+        throw new Error(`Edge function failed: ${error.message}`);
+      }
+
+      if (!data || !data.success) {
+        throw new Error(data?.details || 'Unknown error from Edge function');
+      }
+
+      console.log('MCQ generated successfully via Edge Function');
+      return { questions: data.questions };
+
+    } catch (error) {
+      console.error('Edge function failed, falling back to direct API call:', error);
+      
       const fileContent = await file.text();
       
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
@@ -124,8 +139,6 @@ ${fileContent.substring(0, 3000)}`
       const questions = JSON.parse(jsonMatch[0]);
       return { questions };
     }
-
-    return data;
   }
 };
 

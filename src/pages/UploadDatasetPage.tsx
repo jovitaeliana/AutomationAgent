@@ -96,7 +96,56 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
     setUploadStatus(`Test file "${file.name}" selected`);
   };
 
-  // Handle MCQ generation
+  // // Handle MCQ generation
+  // const handleGenerateMCQ = async () => {
+  //   if (!datasetFile) {
+  //     setUploadStatus('Please select a dataset file first');
+  //     return;
+  //   }
+    
+  //   setIsGenerating(true);
+  //   setUploadStatus('Generating MCQ questions...');
+    
+  //   try {
+  //     const formData = new FormData();
+  //     formData.append('file', datasetFile);
+  //     formData.append('apiKey', GEMINI_API_KEY);
+      
+  //     console.log('Sending request to generate MCQ...');
+      
+  //     const response = await fetch('http://localhost:3002/datasets/generate-mcq', {
+  //       method: 'POST',
+  //       body: formData,
+  //     });
+      
+  //     console.log('Response status:', response.status);
+      
+  //     if (!response.ok) {
+  //       const errorText = await response.text();
+  //       console.error('Server error response:', errorText);
+  //       throw new Error(`Generation failed: ${response.statusText} - ${errorText}`);
+  //     }
+      
+  //     const result = await response.json();
+  //     console.log('MCQ generation result:', result);
+      
+  //     setGeneratedMCQ(result.questions);
+  //     setUploadStatus(`Generated ${result.questions.length} MCQ questions successfully!`);
+      
+  //   } catch (error) {
+  //     console.error('MCQ generation error:', error);
+      
+  //     // More specific error handling
+  //     if (error instanceof TypeError && error.message === 'Failed to fetch') {
+  //       setUploadStatus('Connection failed: Make sure your backend server is running on port 3002');
+  //     } else {
+  //       setUploadStatus(`Generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  //     }
+  //   } finally {
+  //     setIsGenerating(false);
+  //   }
+  // };
+
   const handleGenerateMCQ = async () => {
     if (!datasetFile) {
       setUploadStatus('Please select a dataset file first');
@@ -107,26 +156,10 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
     setUploadStatus('Generating MCQ questions...');
     
     try {
-      const formData = new FormData();
-      formData.append('file', datasetFile);
-      formData.append('apiKey', GEMINI_API_KEY);
-      
       console.log('Sending request to generate MCQ...');
       
-      const response = await fetch('http://localhost:3002/datasets/generate-mcq', {
-        method: 'POST',
-        body: formData,
-      });
+      const result = await datasetService.generateMCQ(datasetFile, GEMINI_API_KEY);
       
-      console.log('Response status:', response.status);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Server error response:', errorText);
-        throw new Error(`Generation failed: ${response.statusText} - ${errorText}`);
-      }
-      
-      const result = await response.json();
       console.log('MCQ generation result:', result);
       
       setGeneratedMCQ(result.questions);
@@ -135,9 +168,8 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
     } catch (error) {
       console.error('MCQ generation error:', error);
       
-      // More specific error handling
       if (error instanceof TypeError && error.message === 'Failed to fetch') {
-        setUploadStatus('Connection failed: Make sure your backend server is running on port 3002');
+        setUploadStatus('Connection failed: Please check your internet connection');
       } else {
         setUploadStatus(`Generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
