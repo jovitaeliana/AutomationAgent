@@ -31,25 +31,7 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
   const [existingDatasets, setExistingDatasets] = useState<Dataset[]>([]);
   const [isLoadingDatasets, setIsLoadingDatasets] = useState(true);
   
-  const GEMINI_API_KEY = 'AIzaSyDwMjzuAfke1ZUDl0xUaUpjsCKNiOU1UPo';
-
-  // Fetch existing datasets on component mount
-  // const fetchDatasets = async () => {
-  //   try {
-  //     setIsLoadingDatasets(true);
-  //     const response = await fetch('http://localhost:3002/datasets');
-  //     if (response.ok) {
-  //       const datasets = await response.json();
-  //       setExistingDatasets(datasets);
-  //     } else {
-  //       console.error('Failed to fetch datasets');
-  //     }
-  //   } catch (error) {
-  //     console.error('Error fetching datasets:', error);
-  //   } finally {
-  //     setIsLoadingDatasets(false);
-  //   }
-  // };
+  const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY!
 
   const fetchDatasets = async () => {
     try {
@@ -64,36 +46,10 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
     }
   };
 
-  // Load datasets on component mount
   useEffect(() => {
     fetchDatasets();
   }, []);
 
-  // Handle dataset deletion
-  // const handleDeleteDataset = async (datasetId: string) => {
-  //   if (!confirm('Are you sure you want to delete this dataset? This action cannot be undone.')) {
-  //     return;
-  //   }
-
-  //   try {
-  //     const response = await fetch(`http://localhost:3002/datasets/${datasetId}`, {
-  //       method: 'DELETE',
-  //     });
-
-  //     if (response.ok) {
-  //       setUploadStatus('Dataset deleted successfully!');
-  //       // Refresh the datasets list
-  //       fetchDatasets();
-  //       setTimeout(() => setUploadStatus(''), 3000);
-  //     } else {
-  //       throw new Error('Failed to delete dataset');
-  //     }
-  //   } catch (error) {
-  //     console.error('Delete error:', error);
-  //     setUploadStatus(`Delete failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  //     setTimeout(() => setUploadStatus(''), 5000);
-  //   }
-  // };
   const handleDeleteDataset = async (datasetId: string) => {
     if (!confirm('Are you sure you want to delete this dataset? This action cannot be undone.')) {
       return;
@@ -190,66 +146,6 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
     }
   };
 
-  // Handle form submission
-  // const handleSubmit = async (e: React.FormEvent) => {
-  //   e.preventDefault();
-    
-  //   if (!datasetName) {
-  //     setUploadStatus('Please enter a dataset name');
-  //     return;
-  //   }
-    
-  //   if (generatedMCQ.length === 0) {
-  //     setUploadStatus('Please generate MCQ questions first');
-  //     return;
-  //   }
-
-  //   setIsUploading(true);
-  //   setUploadStatus('Saving dataset...');
-
-  //   try {
-  //     const response = await fetch('http://localhost:3002/datasets', {
-  //       method: 'POST',
-  //       headers: {
-  //         'Content-Type': 'application/json',
-  //       },
-  //       body: JSON.stringify({
-  //         datasetName,
-  //         testType,
-  //         description,
-  //         questions: generatedMCQ
-  //       }),
-  //     });
-
-  //     if (!response.ok) {
-  //       throw new Error(`Save failed: ${response.statusText}`);
-  //     }
-
-  //     const result = await response.json();
-  //     console.log('Save successful:', result);
-  //     setUploadStatus('Dataset saved successfully!');
-      
-  //     // Refresh datasets list after successful save
-  //     fetchDatasets();
-      
-  //     // Reset form after successful save
-  //     setTimeout(() => {
-  //       setDatasetName('');
-  //       setDescription('');
-  //       setDatasetFile(null);
-  //       setTestFile(null);
-  //       setGeneratedMCQ([]);
-  //       setUploadStatus('');
-  //     }, 2000);
-
-  //   } catch (error) {
-  //     console.error('Save error:', error);
-  //     setUploadStatus(`Save failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  //   } finally {
-  //     setIsUploading(false);
-  //   }
-  // };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -275,9 +171,8 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
       });
 
       setUploadStatus('Dataset saved successfully!');
-      fetchDatasets(); // Refresh datasets list
+      fetchDatasets();
       
-      // Reset form after successful save
       setTimeout(() => {
         setDatasetName('');
         setDescription('');
