@@ -2,18 +2,127 @@ import React, { useState, useEffect } from 'react';
 import PageHeader from '../components/PageHeader';
 import SectionCard from '../components/SectionCard';
 import PresetCard from '../components/PresetCard';
-import { InputField, TextareaField } from '../components/FormField';
-import { WeatherConfigFields, SearchConfigFields, CustomConfigFields } from '../components/PresetConfigs';
+import { InputField, TextareaField, SelectField } from '../components/FormField';
+import { WeatherConfigFields, CustomConfigFields } from '../components/PresetConfigs';
 import { BackButtonIcon } from '../components/Icons';
 import { presetService, agentService } from '../services/api';
 import type { Preset } from '../lib/supabase';
 
-// Define the page names type
 type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'agent-creation';
 
 interface ConfigureAgentPageProps {
   onNavigate: (page: PageName) => void;
 }
+
+// Enhanced SearchConfigFields component
+const AdvancedSearchConfigFields: React.FC<{
+  serpApiKey: string;
+  onSerpApiKeyChange: (value: string) => void;
+  geminiApiKey: string;
+  onGeminiApiKeyChange: (value: string) => void;
+  searchScope: string;
+  onSearchScopeChange: (value: string) => void;
+  customInstructions: string;
+  onCustomInstructionsChange: (value: string) => void;
+  maxResults: string;
+  onMaxResultsChange: (value: string) => void;
+  resultProcessing: string;
+  onResultProcessingChange: (value: string) => void;
+  filterCriteria: string;
+  onFilterCriteriaChange: (value: string) => void;
+}> = ({
+  serpApiKey, onSerpApiKeyChange,
+  geminiApiKey, onGeminiApiKeyChange,
+  searchScope, onSearchScopeChange,
+  customInstructions, onCustomInstructionsChange,
+  maxResults, onMaxResultsChange,
+  resultProcessing, onResultProcessingChange,
+  filterCriteria, onFilterCriteriaChange
+}) => (
+  <div className="space-y-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <InputField
+        label="SerpAPI Key *"
+        placeholder="Enter your SerpAPI key"
+        value={serpApiKey}
+        onChange={onSerpApiKeyChange}
+        type="password"
+      />
+      <InputField
+        label="Gemini API Key *"
+        placeholder="Enter your Gemini API key for result processing"
+        value={geminiApiKey}
+        onChange={onGeminiApiKeyChange}
+        type="password"
+      />
+    </div>
+
+    <SelectField
+      label="Search Scope"
+      options={[
+        "General Web Search",
+        "Places & Locations",
+        "Business & Services", 
+        "News & Current Events",
+        "Academic & Research",
+        "Shopping & Products",
+        "Images & Visual Content",
+        "Local Services",
+        "Custom (defined below)"
+      ]}
+      value={searchScope}
+      onChange={onSearchScopeChange}
+    />
+
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <InputField
+        label="Max Results"
+        placeholder="10"
+        value={maxResults}
+        onChange={onMaxResultsChange}
+        type="number"
+      />
+      <SelectField
+        label="Result Processing"
+        options={[
+          "Summarize with Gemini",
+          "Extract Key Information",
+          "Answer Specific Questions",
+          "Filter by Relevance",
+          "Custom Processing"
+        ]}
+        value={resultProcessing}
+        onChange={onResultProcessingChange}
+      />
+    </div>
+
+    <TextareaField
+      label="Custom Instructions"
+      placeholder="e.g., 'Focus only on restaurant information with ratings and opening hours' or 'Extract only price information and availability'"
+      value={customInstructions}
+      onChange={onCustomInstructionsChange}
+      rows={3}
+    />
+
+    <TextareaField
+      label="Filter Criteria"
+      placeholder="e.g., 'Only include results from the last 30 days' or 'Exclude promotional content'"
+      value={filterCriteria}
+      onChange={onFilterCriteriaChange}
+      rows={2}
+    />
+
+    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+      <h4 className="font-medium text-blue-900 mb-2">How it works:</h4>
+      <ul className="text-sm text-blue-800 space-y-1">
+        <li>• SerpAPI fetches search results based on your queries</li>
+        <li>• Gemini AI processes and filters results according to your custom instructions</li>
+        <li>• Results are formatted and presented according to your specified scope</li>
+        <li>• Both API keys are required for the enhanced search functionality</li>
+      </ul>
+    </div>
+  </div>
+);
 
 const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) => {
   // State for data fetched from Supabase
@@ -36,9 +145,16 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
   const [weatherApiKey, setWeatherApiKey] = useState('');
   const [location, setLocation] = useState('Singapore');
   const [units, setUnits] = useState('Celsius');
-  const [searchApiKey, setSearchApiKey] = useState('');
-  const [searchEngineId, setSearchEngineId] = useState('');
+  
+  // Enhanced search configuration
+  const [serpApiKey, setSerpApiKey] = useState('');
+  const [geminiApiKey, setGeminiApiKey] = useState('');
+  const [searchScope, setSearchScope] = useState('General Web Search');
+  const [customInstructions, setCustomInstructions] = useState('');
   const [maxResults, setMaxResults] = useState('10');
+  const [resultProcessing, setResultProcessing] = useState('Summarize with Gemini');
+  const [filterCriteria, setFilterCriteria] = useState('');
+  
   const [agentType, setAgentType] = useState('LLM Agent');
   const [configJson, setConfigJson] = useState('');
 
@@ -108,6 +224,20 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
       return;
     }
 
+    // Validate search preset requirements
+    if (selectedPreset === 'search') {
+      if (!serpApiKey.trim()) {
+        setSaveStatus('SerpAPI key is required for search functionality');
+        setTimeout(() => setSaveStatus(''), 3000);
+        return;
+      }
+      if (!geminiApiKey.trim()) {
+        setSaveStatus('Gemini API key is required for result processing');
+        setTimeout(() => setSaveStatus(''), 3000);
+        return;
+      }
+    }
+
     setIsSaving(true);
     setSaveStatus('Saving configuration...');
 
@@ -116,7 +246,9 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
       let configuration: any = {
         preset: selectedPreset,
         systemPrompt,
-        limitations
+        limitations,
+        createdAt: new Date().toISOString(),
+        version: '1.0'
       };
 
       // Add preset-specific configuration
@@ -130,16 +262,34 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
           break;
         case 'search':
           configuration.search = {
-            apiKey: searchApiKey,
-            engineId: searchEngineId,
-            maxResults: parseInt(maxResults)
+            serpApiKey: serpApiKey,
+            geminiApiKey: geminiApiKey,
+            searchScope: searchScope,
+            customInstructions: customInstructions,
+            maxResults: parseInt(maxResults),
+            resultProcessing: resultProcessing,
+            filterCriteria: filterCriteria,
+            // Enhanced processing instructions for Gemini
+            processingPrompt: `Process search results according to these parameters:
+- Scope: ${searchScope}
+- Custom Instructions: ${customInstructions}
+- Filter Criteria: ${filterCriteria}
+- Processing Type: ${resultProcessing}
+- Max Results: ${maxResults}`
           };
           break;
         case 'custom':
-          configuration.custom = {
-            agentType,
-            configJson: configJson ? JSON.parse(configJson) : {}
-          };
+          try {
+            configuration.custom = {
+              agentType,
+              configJson: configJson ? JSON.parse(configJson) : {}
+            };
+          } catch (jsonError) {
+            setSaveStatus('Invalid JSON in custom configuration');
+            setIsSaving(false);
+            setTimeout(() => setSaveStatus(''), 3000);
+            return;
+          }
           break;
       }
 
@@ -151,7 +301,7 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
       });
 
       console.log('Agent saved successfully:', savedAgent);
-      setSaveStatus('Configuration saved successfully!');
+      setSaveStatus('Configuration saved successfully! Your agent is now ready to use.');
       
       // Reset form after successful save
       setTimeout(() => {
@@ -163,20 +313,24 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
         setWeatherApiKey('');
         setLocation('Singapore');
         setUnits('Celsius');
-        setSearchApiKey('');
-        setSearchEngineId('');
+        setSerpApiKey('');
+        setGeminiApiKey('');
+        setSearchScope('General Web Search');
+        setCustomInstructions('');
         setMaxResults('10');
+        setResultProcessing('Summarize with Gemini');
+        setFilterCriteria('');
         setAgentType('LLM Agent');
         setConfigJson('');
         setSaveStatus('');
-      }, 2000);
+      }, 3000);
 
     } catch (err) {
       console.error('Error saving agent:', err);
       setSaveStatus(`Save failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setIsSaving(false);
-      setTimeout(() => setSaveStatus(''), 5000);
+      setTimeout(() => setSaveStatus(''), 8000);
     }
   };
 
@@ -189,10 +343,14 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
           units={units} onUnitsChange={setUnits} 
         />;
       case 'search': 
-        return <SearchConfigFields 
-          apiKey={searchApiKey} onApiKeyChange={setSearchApiKey}
-          engineId={searchEngineId} onEngineIdChange={setSearchEngineId}
-          maxResults={maxResults} onMaxResultsChange={setMaxResults} 
+        return <AdvancedSearchConfigFields 
+          serpApiKey={serpApiKey} onSerpApiKeyChange={setSerpApiKey}
+          geminiApiKey={geminiApiKey} onGeminiApiKeyChange={setGeminiApiKey}
+          searchScope={searchScope} onSearchScopeChange={setSearchScope}
+          customInstructions={customInstructions} onCustomInstructionsChange={setCustomInstructions}
+          maxResults={maxResults} onMaxResultsChange={setMaxResults}
+          resultProcessing={resultProcessing} onResultProcessingChange={setResultProcessing}
+          filterCriteria={filterCriteria} onFilterCriteriaChange={setFilterCriteria}
         />;
       case 'custom': 
         return <CustomConfigFields 
@@ -205,7 +363,7 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
   };
 
   return (
-    <form onSubmit={handleSaveConfiguration} className="min-h-screen bg-gradient-to-br from-app-bg-highlight to-app-bg text-app-text font-sans">
+    <div className="min-h-screen bg-gradient-to-br from-app-bg-highlight to-app-bg text-app-text font-sans">
       <PageHeader title="Configure Agent" subtitle="Set up and customize your automation agent">
         <div className="flex items-center space-x-4">
           <button 
@@ -214,17 +372,6 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
             className="text-app-text-subtle hover:opacity-80"
           >
             <BackButtonIcon />
-          </button>
-          <button 
-            type="submit" 
-            disabled={isSaving}
-            className={`font-semibold py-2 px-4 rounded-lg transition-colors ${
-              isSaving 
-                ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
-                : 'bg-primary text-white hover:bg-primary-hover'
-            }`}
-          >
-            {isSaving ? 'Saving...' : 'Save Configuration'}
           </button>
         </div>
       </PageHeader>
@@ -302,8 +449,24 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
             />
           </div>
         </SectionCard>
+
+        {/* Save Configuration Button at Bottom */}
+        <div className="flex justify-center pt-8">
+          <button 
+            type="button"
+            onClick={handleSaveConfiguration}
+            disabled={isSaving || !selectedPreset}
+            className={`font-semibold py-3 px-8 rounded-lg transition-colors text-lg ${
+              isSaving || !selectedPreset
+                ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
+                : 'bg-primary text-white hover:bg-primary-hover shadow-lg hover:shadow-xl'
+            }`}
+          >
+            {isSaving ? 'Saving Configuration...' : 'Save Configuration'}
+          </button>
+        </div>
       </main> 
-    </form>
+    </div>
   );
 };
 

@@ -8,8 +8,9 @@ import type { NodeCategory } from '../components/FlowSidebar';
 import FlowNode from '../components/FlowNode';
 import { BackButtonIcon } from '../components/Icons';
 import DatasetSelectionModal from '../components/DatasetSelectionModal';
+import AgentSelectionModal from '../components/AgentSelectionModal';
 import { flowService, availableNodesService } from '../services/api';
-import type { Dataset } from '../lib/supabase';
+import type { Dataset, Agent } from '../lib/supabase';
 
 // Define the page names type
 type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'agent-creation';
@@ -55,6 +56,10 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 });
+
+  const [isAgentModalOpen, setIsAgentModalOpen] = useState(false);
+  const [pendingAgentNodeData, setPendingAgentNodeData] = useState<any>(null);
+  const [nodeAgents, setNodeAgents] = useState<{[nodeId: string]: Agent}>({});
 
   // Create a debounced save function for positions
   const debouncedSavePosition = useCallback(
@@ -223,13 +228,21 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
         
         // Check if this is a Document Q&A node
         if (item.title.toLowerCase().includes('document q&a') || item.title.toLowerCase().includes('qa')) {
-          // Store pending node data and open dataset selection modal
           setPendingNodeData({
             item,
             position
           });
           setIsDatasetModalOpen(true);
-        } else {
+        } 
+        // Check if this is a Saved Agent node
+        else if (item.title.toLowerCase().includes('saved agent') || item.id === 'agent-saved') {
+          setPendingAgentNodeData({
+            item,
+            position
+          });
+          setIsAgentModalOpen(true);
+        } 
+        else {
           // Create node directly for other types
           const newNode: FlowNodeData = {
             id: `node-${Date.now()}`,
@@ -269,6 +282,26 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
 
   drop(canvasRef);
 
+  const handleAgentSelect = async (agent: Agent) => {
+    if (pendingAgentNodeData) {
+      const nodeId = `node-${Date.now()}`;
+      const newNode: FlowNodeData = {
+        id: nodeId,
+        title: `🤖 ${agent.name}`,
+        type: `Agent: ${agent.configuration?.preset || 'Custom'}`,
+        position: pendingAgentNodeData.position,
+      };
+      
+      // Save to Supabase using the service
+      await createNode(newNode);
+      
+      // Update local state
+      setNodes(prev => [...prev, newNode]);
+      setNodeAgents(prev => ({ ...prev, [nodeId]: agent }));
+      setPendingAgentNodeData(null);
+    }
+  };
+
   // Delete node using Supabase
   const deleteNode = async (nodeId: string) => {
     try {
@@ -281,10 +314,18 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
     // Update local state
     setNodes(prev => prev.filter(n => n.id !== nodeId));
     setConnections(prev => prev.filter(c => c[0] !== nodeId && c[1] !== nodeId));
+    
+    // Remove both dataset and agent associations
     setNodeDatasets(prev => {
       const newDatasets = { ...prev };
       delete newDatasets[nodeId];
       return newDatasets;
+    });
+    
+    setNodeAgents(prev => {
+      const newAgents = { ...prev };
+      delete newAgents[nodeId];
+      return newAgents;
     });
   };
 
@@ -381,20 +422,24 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
                 }}
               >
                 {connections.map(([startId, endId]) => {
-                  // Calculate positions based on node positions (not DOM elements)
+                  // Calculate positions based on node positions AND actual node dimensions
                   const startNode = nodes.find(n => n.id === startId);
                   const endNode = nodes.find(n => n.id === endId);
                   
                   if (!startNode || !endNode) return null;
                   
+                  const nodeWidth = 180; 
+                  const nodeHeight = 80; 
+                  const portRadius = 6; 
+                  
                   const from = {
-                    x: startNode.position.x + 200, // Right side of start node
-                    y: startNode.position.y + 50   // Center height of node
+                    x: startNode.position.x + nodeWidth,
+                    y: startNode.position.y + (nodeHeight / 2) + 18
                   };
                   
                   const to = {
-                    x: endNode.position.x,         // Left side of end node
-                    y: endNode.position.y + 50     // Center height of node
+                    x: endNode.position.x, // Left edge
+                    y: endNode.position.y + (nodeHeight / 2) + 18
                   };
                   
                   return (
@@ -431,12 +476,19 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
               <div>Alt + Drag or Middle Click: Pan</div>
             </div>
           </div>
+          
+          {/* Configuration Panel */}
           <ConfigurationPanel
             selectedNode={nodes.find(n => n.id === configuringNodeId) || null}
-            nodeConfig={configuringNodeId ? nodeDatasets[configuringNodeId] : null}
+            nodeConfig={configuringNodeId ? (nodeDatasets[configuringNodeId] || nodeAgents[configuringNodeId]) : null}
             onConfigChange={(newConfig) => {
               if (configuringNodeId && newConfig) {
-                setNodeDatasets(prev => ({ ...prev, [configuringNodeId]: newConfig }));
+                // Check if it's a dataset or agent config
+                if ('questions' in newConfig) {
+                  setNodeDatasets(prev => ({ ...prev, [configuringNodeId]: newConfig }));
+                } else {
+                  setNodeAgents(prev => ({ ...prev, [configuringNodeId]: newConfig }));
+                }
               }
             }}
             onClose={() => setConfiguringNodeId(null)}
@@ -444,11 +496,9 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
               if (configuringNodeId) {
                 console.log('Configuration saved for node:', configuringNodeId);
                 console.log('Dataset:', nodeDatasets[configuringNodeId]);
+                console.log('Agent:', nodeAgents[configuringNodeId]);
                 
-                // Optional: Show success message
                 alert('Configuration saved successfully!');
-                
-                // Optional: Auto-close the panel after saving
                 setConfiguringNodeId(null);
               }
             }}
@@ -464,6 +514,16 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
           setPendingNodeData(null);
         }}
         onSelect={handleDatasetSelect}
+      />
+
+      {/* Agent Selection Modal */}
+      <AgentSelectionModal
+        isOpen={isAgentModalOpen}
+        onClose={() => {
+          setIsAgentModalOpen(false);
+          setPendingAgentNodeData(null);
+        }}
+        onSelect={handleAgentSelect}
       />
     </div>
   );
