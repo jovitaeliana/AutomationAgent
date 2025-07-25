@@ -13,6 +13,15 @@ interface UploadDatasetPageProps {
   onNavigate: (page: PageName) => void;
 }
 
+// Alert types
+type AlertType = 'success' | 'error' | 'info' | 'warning';
+
+interface Alert {
+  id: string;
+  type: AlertType;
+  message: string;
+}
+
 const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => {
   // State for all the form fields on this page
   const [datasetName, setDatasetName] = useState('');
@@ -23,7 +32,6 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
   const [datasetFile, setDatasetFile] = useState<File | null>(null);
   const [testFile, setTestFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadStatus, setUploadStatus] = useState<string>('');
   
   const [generatedMCQ, setGeneratedMCQ] = useState<any[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -31,7 +39,28 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
   const [existingDatasets, setExistingDatasets] = useState<Dataset[]>([]);
   const [isLoadingDatasets, setIsLoadingDatasets] = useState(true);
   
+  // State for form reset key to force component re-render
+  const [formResetKey, setFormResetKey] = useState(0);
+  
+  // Alert system
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  
   const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY!
+
+  // Alert functions
+  const addAlert = (type: AlertType, message: string) => {
+    const id = Date.now().toString();
+    setAlerts(prev => [...prev, { id, type, message }]);
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+      removeAlert(id);
+    }, 5000);
+  };
+
+  const removeAlert = (id: string) => {
+    setAlerts(prev => prev.filter(alert => alert.id !== id));
+  };
 
   const fetchDatasets = async () => {
     try {
@@ -40,7 +69,7 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
       setExistingDatasets(datasets);
     } catch (error) {
       console.error('Error fetching datasets:', error);
-      setUploadStatus('Failed to load datasets');
+      addAlert('error', 'Failed to load datasets');
     } finally {
       setIsLoadingDatasets(false);
     }
@@ -57,13 +86,11 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
 
     try {
       await datasetService.delete(datasetId);
-      setUploadStatus('Dataset deleted successfully!');
+      addAlert('success', 'Dataset deleted successfully!');
       fetchDatasets(); // Refresh the list
-      setTimeout(() => setUploadStatus(''), 3000);
     } catch (error) {
       console.error('Delete error:', error);
-      setUploadStatus(`Delete failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      setTimeout(() => setUploadStatus(''), 5000);
+      addAlert('error', `Delete failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -74,12 +101,12 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
     const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
     
     if (!allowedTypes.includes(fileExtension)) {
-      setUploadStatus(`Invalid file type. Please select: ${allowedTypes.join(', ')}`);
+      addAlert('error', `Invalid file type. Please select: ${allowedTypes.join(', ')}`);
       return;
     }
     
     setDatasetFile(file);
-    setUploadStatus(`Dataset file "${file.name}" selected`);
+    addAlert('info', `Dataset file "${file.name}" selected`);
   };
 
   const handleTestFileSelect = (file: File) => {
@@ -88,72 +115,22 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
     const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
     
     if (!allowedTypes.includes(fileExtension)) {
-      setUploadStatus(`Invalid file type. Please select: ${allowedTypes.join(', ')}`);
+      addAlert('error', `Invalid file type. Please select: ${allowedTypes.join(', ')}`);
       return;
     }
     
     setTestFile(file);
-    setUploadStatus(`Test file "${file.name}" selected`);
+    addAlert('info', `Test file "${file.name}" selected`);
   };
-
-  // // Handle MCQ generation
-  // const handleGenerateMCQ = async () => {
-  //   if (!datasetFile) {
-  //     setUploadStatus('Please select a dataset file first');
-  //     return;
-  //   }
-    
-  //   setIsGenerating(true);
-  //   setUploadStatus('Generating MCQ questions...');
-    
-  //   try {
-  //     const formData = new FormData();
-  //     formData.append('file', datasetFile);
-  //     formData.append('apiKey', GEMINI_API_KEY);
-      
-  //     console.log('Sending request to generate MCQ...');
-      
-  //     const response = await fetch('http://localhost:3002/datasets/generate-mcq', {
-  //       method: 'POST',
-  //       body: formData,
-  //     });
-      
-  //     console.log('Response status:', response.status);
-      
-  //     if (!response.ok) {
-  //       const errorText = await response.text();
-  //       console.error('Server error response:', errorText);
-  //       throw new Error(`Generation failed: ${response.statusText} - ${errorText}`);
-  //     }
-      
-  //     const result = await response.json();
-  //     console.log('MCQ generation result:', result);
-      
-  //     setGeneratedMCQ(result.questions);
-  //     setUploadStatus(`Generated ${result.questions.length} MCQ questions successfully!`);
-      
-  //   } catch (error) {
-  //     console.error('MCQ generation error:', error);
-      
-  //     // More specific error handling
-  //     if (error instanceof TypeError && error.message === 'Failed to fetch') {
-  //       setUploadStatus('Connection failed: Make sure your backend server is running on port 3002');
-  //     } else {
-  //       setUploadStatus(`Generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  //     }
-  //   } finally {
-  //     setIsGenerating(false);
-  //   }
-  // };
 
   const handleGenerateMCQ = async () => {
     if (!datasetFile) {
-      setUploadStatus('Please select a dataset file first');
+      addAlert('warning', 'Please select a dataset file first');
       return;
     }
     
     setIsGenerating(true);
-    setUploadStatus('Generating MCQ questions...');
+    addAlert('info', 'Generating MCQ questions...');
     
     try {
       console.log('Sending request to generate MCQ...');
@@ -163,15 +140,15 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
       console.log('MCQ generation result:', result);
       
       setGeneratedMCQ(result.questions);
-      setUploadStatus(`Generated ${result.questions.length} MCQ questions successfully!`);
+      addAlert('success', `Generated ${result.questions.length} MCQ questions successfully!`);
       
     } catch (error) {
       console.error('MCQ generation error:', error);
       
       if (error instanceof TypeError && error.message === 'Failed to fetch') {
-        setUploadStatus('Connection failed: Please check your internet connection');
+        addAlert('error', 'Connection failed: Please check your internet connection');
       } else {
-        setUploadStatus(`Generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        addAlert('error', `Generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     } finally {
       setIsGenerating(false);
@@ -181,18 +158,18 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!datasetName) {
-      setUploadStatus('Please enter a dataset name');
+    if (!datasetName.trim()) {
+      addAlert('warning', 'Please enter a dataset name');
       return;
     }
     
     if (generatedMCQ.length === 0) {
-      setUploadStatus('Please generate MCQ questions first');
+      addAlert('warning', 'Please generate MCQ questions first');
       return;
     }
 
     setIsUploading(true);
-    setUploadStatus('Saving dataset...');
+    addAlert('info', 'Saving dataset...');
 
     try {
       await datasetService.create({
@@ -202,23 +179,52 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
         questions: generatedMCQ
       });
 
-      setUploadStatus('Dataset saved successfully!');
+      addAlert('success', 'Dataset saved successfully!');
       fetchDatasets();
       
-      setTimeout(() => {
-        setDatasetName('');
-        setDescription('');
-        setDatasetFile(null);
-        setTestFile(null);
-        setGeneratedMCQ([]);
-        setUploadStatus('');
-      }, 2000);
+      // Reset form - clear all form data and file selections
+      setDatasetName('');
+      setDescription('');
+      setDatasetFile(null);
+      setTestFile(null);
+      setGeneratedMCQ([]);
+      
+      // Force FileUploadButton components to reset by changing the key
+      setFormResetKey(prev => prev + 1);
 
     } catch (error) {
       console.error('Save error:', error);
-      setUploadStatus(`Save failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      addAlert('error', `Save failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const getAlertStyles = (type: AlertType) => {
+    switch (type) {
+      case 'success':
+        return 'bg-green-100 border-green-500 text-green-800';
+      case 'error':
+        return 'bg-red-100 border-red-500 text-red-800';
+      case 'warning':
+        return 'bg-yellow-100 border-yellow-500 text-yellow-800';
+      case 'info':
+      default:
+        return 'bg-blue-100 border-blue-500 text-blue-800';
+    }
+  };
+
+  const getAlertIcon = (type: AlertType) => {
+    switch (type) {
+      case 'success':
+        return '✅';
+      case 'error':
+        return '❌';
+      case 'warning':
+        return '⚠️';
+      case 'info':
+      default:
+        return 'ℹ️';
     }
   };
 
@@ -233,36 +239,34 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
           >
             <BackButtonIcon />
           </button>
-          <button 
-            type="submit" 
-            form="dataset-form" 
-            disabled={isUploading || generatedMCQ.length === 0}
-            className={`font-semibold py-2 px-4 rounded-lg transition-colors ${
-              isUploading || generatedMCQ.length === 0
-                ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
-                : 'bg-primary text-white hover:bg-primary-hover'
-            }`}
-          >
-            {isUploading ? 'Saving...' : 'Save Dataset'}
-          </button>
         </div>
       </PageHeader>
 
-      <main className="max-w-7xl mx-auto px-8 py-12">
-        <form id="dataset-form" onSubmit={handleSubmit} className="space-y-8">
-          {/* Upload Status at TOP - for form validation errors and general messages */}
-          {uploadStatus && !uploadStatus.toLowerCase().includes('generated') && !uploadStatus.toLowerCase().includes('mcq') && (
-            <div className={`p-4 rounded-lg border-2 font-medium ${
-              uploadStatus.toLowerCase().includes('success')
-                ? 'bg-green-100 border-green-500 text-green-800'
-                : uploadStatus.toLowerCase().includes('failed') || uploadStatus.toLowerCase().startsWith('please')
-                ? 'bg-red-100 border-red-500 text-red-800'
-                : 'bg-blue-100 border-blue-500 text-blue-800'
-            }`}>
-              {uploadStatus}
+      {/* Fixed Alert System */}
+      <div className="fixed top-4 right-4 z-50 space-y-2 max-w-md">
+        {alerts.map((alert) => (
+          <div
+            key={alert.id}
+            className={`p-4 rounded-lg border-2 font-medium shadow-lg transform transition-all duration-300 ease-in-out ${getAlertStyles(alert.type)}`}
+          >
+            <div className="flex items-start justify-between">
+              <div className="flex items-start space-x-2">
+                <span className="flex-shrink-0">{getAlertIcon(alert.type)}</span>
+                <p className="text-sm">{alert.message}</p>
+              </div>
+              <button
+                onClick={() => removeAlert(alert.id)}
+                className="ml-2 text-lg leading-none opacity-70 hover:opacity-100 transition-opacity"
+              >
+                ×
+              </button>
             </div>
-          )}
+          </div>
+        ))}
+      </div>
 
+      <main className="max-w-7xl mx-auto px-8 py-12 pb-32">
+        <form id="dataset-form" onSubmit={handleSubmit} className="space-y-8">
           {/* Dataset Configuration Card */}
           <div className="bg-app-bg-content rounded-xl border border-app-border p-6 hover:shadow-lg transition-all">
             <h2 className="text-2xl font-semibold text-app-text mb-6">Dataset Configuration</h2>
@@ -293,26 +297,13 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
           {/* File Uploads & MCQ Generation */}
           <div className="bg-app-bg-content rounded-xl border border-app-border p-6 hover:shadow-lg transition-all flex flex-col md:flex-row gap-8">
             <div className="flex-1 space-y-8">
-
-              {/* Upload Status ABOVE UPLOAD BLOCK - specifically for MCQ generation success */}
-              {uploadStatus && (uploadStatus.toLowerCase().includes('generated') || uploadStatus.toLowerCase().includes('mcq')) && (
-                <div className={`p-4 rounded-lg border-2 font-medium ${
-                  uploadStatus.toLowerCase().includes('success')
-                    ? 'bg-green-100 border-green-500 text-green-800'
-                    : uploadStatus.toLowerCase().includes('failed') || uploadStatus.toLowerCase().startsWith('please')
-                    ? 'bg-red-100 border-red-500 text-red-800'
-                    : 'bg-blue-100 border-blue-500 text-blue-800'
-                }`}>
-                  {uploadStatus}
-                </div>
-              )}
-
               <div>
                 <h2 className="text-2xl font-semibold text-app-text mb-4">Upload Dataset File *</h2>
                 <p className="block text-sm font-medium text-app-text mb-2">
                   Upload your dataset file (CSV, JSON, TXT, XLSX, etc.)
                 </p>
                 <FileUploadButton 
+                  key={`data-file-${formResetKey}`}
                   id="data-file-upload" 
                   onFileSelect={handleDatasetFileSelect}
                 />
@@ -344,6 +335,7 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
                   Upload your test file for validation (CSV, JSON, TXT, etc.)
                 </p>
                 <FileUploadButton 
+                  key={`test-file-${formResetKey}`}
                   id="test-file-upload" 
                   onFileSelect={handleTestFileSelect}
                 />
@@ -482,6 +474,31 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
           </div>
         </form>
       </main>
+
+      {/* Fixed Bottom Save Button */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg p-4">
+        <div className="max-w-7xl mx-auto flex justify-end">
+          <button 
+            type="submit" 
+            form="dataset-form" 
+            disabled={isUploading || generatedMCQ.length === 0}
+            className={`font-semibold py-3 px-8 rounded-lg transition-colors shadow-lg ${
+              isUploading || generatedMCQ.length === 0
+                ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
+                : 'bg-primary text-white hover:bg-primary-hover hover:shadow-xl transform hover:scale-105'
+            }`}
+          >
+            {isUploading ? (
+              <div className="flex items-center space-x-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                <span>Saving...</span>
+              </div>
+            ) : (
+              'Save Dataset'
+            )}
+          </button>
+        </div>
+      </div>
     </div>
   );
 };
