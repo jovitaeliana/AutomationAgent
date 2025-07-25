@@ -17,6 +17,8 @@ interface TestResult {
   isCorrect: boolean | null;
   responseTime: number;
   error?: string;
+  options?: string[];
+  selectedAnswer?: string;
 }
 
 interface Question {
@@ -43,6 +45,7 @@ const DatasetTestingPanel: React.FC<DatasetTestingPanelProps> = ({
   const [isPaused, setIsPaused] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [testCompleted, setTestCompleted] = useState(false);
 
   // Load datasets on component mount
   useEffect(() => {
@@ -71,21 +74,195 @@ const DatasetTestingPanel: React.FC<DatasetTestingPanelProps> = ({
 
   const getApiKey = (): string | null => {
     if (!agentConfig?.configuration) return null;
-    
+
     // Check different possible locations for API key
     const config = agentConfig.configuration;
-    return config.geminiApiKey || 
-           config.search?.geminiApiKey || 
-           config.apiKey || 
+    return config.geminiApiKey ||
+           config.search?.geminiApiKey ||
+           config.apiKey ||
            null;
   };
 
-  const callGeminiAPI = async (question: string, apiKey: string): Promise<string> => {
-    const startTime = Date.now();
+  const getSerpApiKey = (): string | null => {
+    if (!agentConfig?.configuration?.search) return null;
+    return agentConfig.configuration.search.serpApiKey || null;
+  };
+
+  const hasSearchCapability = (): boolean => {
+    return !!(getSerpApiKey() && getApiKey());
+  };
+
+  const getSystemPrompt = (): string => {
+    if (!agentConfig?.configuration) {
+      return "You are a helpful AI assistant. Answer the question accurately and concisely.";
+    }
+
+    const config = agentConfig.configuration;
+    let systemPrompt = "";
+
+    // Base identity
+    systemPrompt += `You are an AI assistant named "${agentConfig.name}".\n`;
+
+    // Purpose / role
+    if (agentConfig.description) {
+      systemPrompt += `Your role: ${agentConfig.description}\n`;
+    }
+
+    // Behavior guidelines
+    systemPrompt += `
+      If you have specific expertise or focus areas, prioritize those.
+      Be honest about your capabilities and limitations.\n`;
+
+    // Add limitations as guidelines
+    if (config.limitations) {
+      systemPrompt += `\nPlease note these guidelines: ${config.limitations}\n`;
+    }
+
+    // Add search capabilities
+    if (config.preset === 'search' && config.search) {
+      systemPrompt += `
+        Your behavior and responses must strictly follow the configuration defined below.
+        Do not go beyond these boundaries even if requested to do so by the user.
+        Do not make assumptions or generate content that contradicts these rules.
+        Respond clearly and concisely within the allowed capabilities.\n`;
+    }
+
+    return systemPrompt.trim();
+  };
+
+  const shouldPerformSearch = (message: string): boolean => {
+    if (!hasSearchCapability()) return false;
+
+    const lowerMessage = message.toLowerCase();
+
+    // Check if the query is asking for current/local information that would benefit from search
+    const searchIndicators = [
+      // Current information requests
+      /\b(current|latest|recent|today|now|2024|2025)\b.*\b(shops?|restaurants?|places?|stores?|cafes?|coffee)\b/,
+      /\b(top|best|popular|trending|recommended)\b.*\b(shops?|restaurants?|places?|stores?|cafes?|coffee)\b/,
+
+      // Location-specific requests (but only for Singapore-related queries for this agent)
+      /\b(shops?|restaurants?|places?|stores?|cafes?|coffee)\b.*\b(in|at|near|around)\b.*\b(singapore|sengkang|tampines|jurong|orchard|marina|sentosa|changi|woodlands|yishun|ang mo kio|toa payoh|bishan|serangoon|hougang|punggol|pasir ris|bedok|kallang|geylang|novena|dhoby ghaut|raffles|clarke quay|boat quay|chinatown|little india|bugis|city hall|somerset|newton|bukit timah|clementi|dover|commonwealth|queenstown|redhill|tiong bahru|outram|tanjong pagar|harbourfront|vivocity|ion|ngee ann|takashimaya|plaza singapura|bugis junction|suntec|esplanade|merlion)\b/,
+
+      // Direct search requests
+      /\b(find|search|look|locate|where)\b.*\b(shops?|restaurants?|places?|stores?|cafes?|coffee)\b/,
+
+      // Price/business information
+      /\b(price|cost|hours?|opening|closing|contact|phone|address)\b.*\b(shops?|restaurants?|places?|stores?|cafes?|coffee)\b/,
+
+      // Current events, news, weather
+      /\b(news|events|weather|traffic|happening)\b/
+    ];
+
+    // Only search if the query matches specific patterns that indicate need for current information
+    return searchIndicators.some(pattern => pattern.test(lowerMessage));
+  };
+
+  const performSearch = async (query: string): Promise<string> => {
+    const serpApiKey = getSerpApiKey();
+    if (!serpApiKey) {
+      throw new Error('No SerpAPI key found in agent configuration');
+    }
 
     try {
-      const systemPrompt = agentConfig?.configuration?.systemPrompt ||
-                          "You are a helpful AI assistant. Answer the question accurately and concisely.";
+      const searchConfig = agentConfig?.configuration?.search;
+      const maxResults = searchConfig?.maxResults || 10;
+
+      // Use backend endpoint to avoid CORS issues
+      const response = await fetch('http://localhost:3002/search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: query,
+          apiKey: serpApiKey,
+          options: {
+            location: 'Singapore',
+            hl: 'en',
+            gl: 'sg',
+            num: maxResults
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`Search request failed: ${errorData.error || response.statusText}`);
+      }
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(`Search failed: ${data.error || 'Unknown error'}`);
+      }
+
+      const results = data.results || [];
+
+      if (results.length === 0) {
+        return "No search results found for your query.";
+      }
+
+      // Format search results for Gemini processing
+      const formattedResults = results.slice(0, maxResults).map((result: any, index: number) => {
+        return `${index + 1}. ${result.title}\n   ${result.snippet}\n   Source: ${result.link}`;
+      }).join('\n\n');
+
+      return formattedResults;
+    } catch (error) {
+      throw new Error(`Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const callGeminiAPI = async (question: string, apiKey: string): Promise<string> => {
+    try {
+      const systemPrompt = getSystemPrompt();
+      let finalQuestion = question;
+
+      // Check if we should perform a search (same logic as chat interface)
+      if (shouldPerformSearch(question)) {
+        try {
+          const searchResults = await performSearch(question);
+          const searchConfig = agentConfig?.configuration?.search;
+
+          finalQuestion = `User Query: ${question}
+
+Current Search Results:
+${searchResults}
+
+Instructions: Based on the current search results above, please provide a helpful and accurate response to the user's question. ${searchConfig?.customInstructions || ''}
+
+${searchConfig?.filterCriteria ? `Filter Criteria: ${searchConfig.filterCriteria}` : ''}
+
+Please provide a comprehensive answer using the current information from the search results.`;
+        } catch (searchError) {
+          // If search fails, continue with original message but mention the search failure
+          finalQuestion = `${question}
+
+Note: I attempted to search for current information but encountered an error: ${searchError instanceof Error ? searchError.message : 'Search unavailable'}. I'll provide a response based on my general knowledge.`;
+        }
+      }
+
+      // Build conversation context using proper Gemini API format (same as chat interface)
+      const contents = [];
+
+      // Add system prompt as the first user message
+      contents.push({
+        role: "user",
+        parts: [{ text: systemPrompt }]
+      });
+
+      // Add a model response acknowledging the system prompt
+      contents.push({
+        role: "model",
+        parts: [{ text: "I understand my role and will respond accordingly." }]
+      });
+
+      // Add current question (potentially with search results)
+      contents.push({
+        role: "user",
+        parts: [{ text: finalQuestion }]
+      });
 
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
         method: 'POST',
@@ -93,30 +270,41 @@ const DatasetTestingPanel: React.FC<DatasetTestingPanelProps> = ({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          contents: [
-            {
-              role: "user",
-              parts: [{
-                text: `${systemPrompt}\n\nQuestion: ${question}\n\nPlease provide a direct, concise answer.`
-              }]
-            }
-          ],
+          contents,
           generationConfig: {
             temperature: 0.3,
             topK: 40,
             topP: 0.95,
             maxOutputTokens: 1024,
-          }
+          },
+          safetySettings: [
+            {
+              category: "HARM_CATEGORY_HARASSMENT",
+              threshold: "BLOCK_MEDIUM_AND_ABOVE"
+            },
+            {
+              category: "HARM_CATEGORY_HATE_SPEECH",
+              threshold: "BLOCK_MEDIUM_AND_ABOVE"
+            },
+            {
+              category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+              threshold: "BLOCK_MEDIUM_AND_ABOVE"
+            },
+            {
+              category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+              threshold: "BLOCK_MEDIUM_AND_ABOVE"
+            }
+          ]
         })
       });
 
       if (!response.ok) {
-        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+        const errorData = await response.text();
+        throw new Error(`API request failed (${response.status}): ${errorData}`);
       }
 
       const data = await response.json();
-      const responseTime = Date.now() - startTime;
-      
+
       if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
         throw new Error('Invalid response format from Gemini API');
       }
@@ -127,24 +315,79 @@ const DatasetTestingPanel: React.FC<DatasetTestingPanelProps> = ({
     }
   };
 
+  const extractAnswerFromResponse = (response: string, options?: string[]): string => {
+    const cleanResponse = response.trim().toLowerCase();
+
+    // If there are options (MCQ), try to match against them
+    if (options && options.length > 0) {
+      // Look for exact option matches
+      for (const option of options) {
+        if (cleanResponse.includes(option.toLowerCase())) {
+          return option;
+        }
+      }
+
+      // Look for option letters (A, B, C, D)
+      const optionLetterMatch = cleanResponse.match(/\b([a-d])\b/i);
+      if (optionLetterMatch) {
+        const letterIndex = optionLetterMatch[1].toUpperCase().charCodeAt(0) - 65;
+        if (letterIndex >= 0 && letterIndex < options.length) {
+          return options[letterIndex];
+        }
+      }
+    }
+
+    return response.trim();
+  };
+
+  const checkAnswerCorrectness = (geminiResponse: string, question: Question): boolean => {
+    const expectedAnswer = question.answer || question.correctAnswer || '';
+    const extractedAnswer = extractAnswerFromResponse(geminiResponse, question.options);
+
+    // For MCQ questions with options
+    if (question.options && question.options.length > 0) {
+      // Direct match with correct answer
+      if (extractedAnswer.toLowerCase() === expectedAnswer.toLowerCase()) {
+        return true;
+      }
+
+      // Check if the response contains the correct answer
+      if (geminiResponse.toLowerCase().includes(expectedAnswer.toLowerCase())) {
+        return true;
+      }
+
+      return false;
+    }
+
+    // For open-ended questions, use fuzzy matching
+    const responseWords = geminiResponse.toLowerCase().split(/\s+/);
+    const expectedWords = expectedAnswer.toLowerCase().split(/\s+/);
+
+    // Check if most expected words are in the response
+    const matchedWords = expectedWords.filter(word =>
+      responseWords.some(respWord => respWord.includes(word) || word.includes(respWord))
+    );
+
+    return matchedWords.length >= Math.ceil(expectedWords.length * 0.6); // 60% match threshold
+  };
+
   const runSingleTest = async (questionIndex: number): Promise<TestResult> => {
     const question = questions[questionIndex];
     const apiKey = getApiKey();
-    
+
     if (!apiKey) {
       throw new Error('No API key found in agent configuration');
     }
 
     const startTime = Date.now();
-    
+
     try {
       const geminiResponse = await callGeminiAPI(question.question, apiKey);
       const responseTime = Date.now() - startTime;
-      
-      // Simple comparison - you might want to make this more sophisticated
+
       const expectedAnswer = question.answer || question.correctAnswer || '';
-      const isCorrect = geminiResponse.toLowerCase().includes(expectedAnswer.toLowerCase()) ||
-                       expectedAnswer.toLowerCase().includes(geminiResponse.toLowerCase());
+      const isCorrect = checkAnswerCorrectness(geminiResponse, question);
+      const selectedAnswer = extractAnswerFromResponse(geminiResponse, question.options);
 
       return {
         questionId: question.id,
@@ -152,7 +395,9 @@ const DatasetTestingPanel: React.FC<DatasetTestingPanelProps> = ({
         expectedAnswer,
         geminiResponse,
         isCorrect,
-        responseTime
+        responseTime,
+        options: question.options,
+        selectedAnswer
       };
     } catch (error) {
       return {
@@ -162,7 +407,8 @@ const DatasetTestingPanel: React.FC<DatasetTestingPanelProps> = ({
         geminiResponse: '',
         isCorrect: null,
         responseTime: Date.now() - startTime,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
+        options: question.options
       };
     }
   };
@@ -178,16 +424,17 @@ const DatasetTestingPanel: React.FC<DatasetTestingPanelProps> = ({
     setError(null);
     setTestResults([]);
     setCurrentQuestionIndex(0);
+    setTestCompleted(false);
 
     for (let i = 0; i < questions.length; i++) {
       if (isPaused) break;
-      
+
       setCurrentQuestionIndex(i);
-      
+
       try {
         const result = await runSingleTest(i);
         setTestResults(prev => [...prev, result]);
-        
+
         // Small delay between requests to avoid rate limiting
         await new Promise(resolve => setTimeout(resolve, 1000));
       } catch (error) {
@@ -197,6 +444,9 @@ const DatasetTestingPanel: React.FC<DatasetTestingPanelProps> = ({
     }
 
     setIsRunning(false);
+    if (!isPaused) {
+      setTestCompleted(true);
+    }
   };
 
   const pauseTesting = () => {
@@ -210,6 +460,18 @@ const DatasetTestingPanel: React.FC<DatasetTestingPanelProps> = ({
     setTestResults([]);
     setCurrentQuestionIndex(0);
     setError(null);
+    setTestCompleted(false);
+  };
+
+  const retestWithNewDataset = () => {
+    setSelectedDataset(null);
+    setQuestions([]);
+    setTestResults([]);
+    setCurrentQuestionIndex(0);
+    setError(null);
+    setTestCompleted(false);
+    setIsRunning(false);
+    setIsPaused(false);
   };
 
   const getTestStats = () => {
@@ -274,6 +536,37 @@ const DatasetTestingPanel: React.FC<DatasetTestingPanelProps> = ({
         </div>
       ) : (
         <>
+          {/* Test Completion Summary */}
+          {testCompleted && testResults.length > 0 && (
+            <div className="p-4 border-b border-app-border bg-green-50">
+              <div className="text-center">
+                <h3 className="text-xl font-bold text-green-800 mb-2">
+                  Test Completed!
+                </h3>
+                <div className="text-3xl font-bold text-green-600 mb-2">
+                  {Math.round((getTestStats().correct / getTestStats().total) * 100)}% Accuracy
+                </div>
+                <div className="text-sm text-green-700 mb-3">
+                  {getTestStats().correct} correct out of {getTestStats().total} questions
+                </div>
+                <div className="flex justify-center space-x-2">
+                  <button
+                    onClick={startTesting}
+                    className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                  >
+                    Retest Same Dataset
+                  </button>
+                  <button
+                    onClick={retestWithNewDataset}
+                    className="px-4 py-2 border border-green-600 text-green-600 rounded hover:bg-green-50 transition-colors"
+                  >
+                    Choose Different Dataset
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Selected Dataset Info */}
           <div className="p-4 border-b border-app-border">
             <div className="flex items-center justify-between mb-2">
@@ -405,13 +698,38 @@ const DatasetTestingPanel: React.FC<DatasetTestingPanelProps> = ({
                     <div className="text-sm text-app-text mb-2">
                       <strong>Q:</strong> {result.question}
                     </div>
-                    
+
+                    {/* Show options for MCQ */}
+                    {result.options && result.options.length > 0 && (
+                      <div className="text-sm text-gray-600 mb-2">
+                        <strong>Options:</strong>
+                        <ul className="ml-4 mt-1">
+                          {result.options.map((option, idx) => (
+                            <li key={idx} className={`${
+                              option === result.expectedAnswer ? 'text-green-600 font-medium' : ''
+                            } ${
+                              option === result.selectedAnswer && option !== result.expectedAnswer ? 'text-red-600' : ''
+                            }`}>
+                              {String.fromCharCode(65 + idx)}. {option}
+                              {option === result.expectedAnswer && ' ✓'}
+                              {option === result.selectedAnswer && option !== result.expectedAnswer && ' ✗'}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
                     <div className="text-sm space-y-1">
                       <div className="text-green-700">
                         <strong>Expected:</strong> {result.expectedAnswer}
                       </div>
+                      {result.selectedAnswer && result.selectedAnswer !== result.geminiResponse && (
+                        <div className="text-blue-700">
+                          <strong>Selected:</strong> {result.selectedAnswer}
+                        </div>
+                      )}
                       <div className="text-blue-700">
-                        <strong>Gemini:</strong> {result.geminiResponse || 'No response'}
+                        <strong>Full Response:</strong> {result.geminiResponse || 'No response'}
                       </div>
                       {result.error && (
                         <div className="text-red-600">

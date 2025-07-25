@@ -456,7 +456,7 @@ Note: I attempted to search for current information but encountered an error: ${
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4" style={{ maxHeight: 'calc(100vh - 200px)' }}>
         {messages.map((message) => (
           <div
             key={message.id}
