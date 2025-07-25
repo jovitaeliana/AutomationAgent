@@ -9,6 +9,8 @@ import FlowNode from '../components/FlowNode';
 import { BackButtonIcon } from '../components/Icons';
 import DatasetSelectionModal from '../components/DatasetSelectionModal';
 import AgentSelectionModal from '../components/AgentSelectionModal';
+import DatasetTestingPanel from '../components/DatasetTestingPanel';
+import GeminiChatPanel from '../components/GeminiChatPanel';
 import { flowService, availableNodesService, nodeConfigService } from '../services/api';
 import type { Dataset, Agent } from '../lib/supabase';
 
@@ -70,6 +72,11 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
   const [pendingAgentNodeData, setPendingAgentNodeData] = useState<any>(null);
   const [nodeAgents, setNodeAgents] = useState<{[nodeId: string]: Agent}>({});
   const [allNodeConfigs, setAllNodeConfigs] = useState<{[nodeId: string]: any}>({});
+
+  const [testingNodeId, setTestingNodeId] = useState<string | null>(null);
+  const [testMode, setTestMode] = useState<'dataset' | 'chat' | null>(null);
+  const [isTestPanelCollapsed, setIsTestPanelCollapsed] = useState(false);
+  const [testPanelWidth, setTestPanelWidth] = useState(400);
 
   // Create a debounced save function for positions
   const debouncedSavePosition = useCallback(
@@ -639,6 +646,11 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
                   onConfigure={setConfiguringNodeId}
                   onPortMouseDown={handlePortMouseDown}
                   onPortMouseUp={handlePortMouseUp}
+                  onTest={(id) => {
+                    setTestingNodeId(id);
+                    setTestMode(null); // or 'chat'/'dataset' if you want to default
+                    setConfiguringNodeId(null); // close config panel if open
+                  }}
                 />
               ))}
             </div>
@@ -709,6 +721,91 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
               minWidth={300}
               maxWidth={800}
             />
+          )}
+          
+          {testingNodeId && (
+            <div
+              className={`bg-white border-l border-app-border shadow-lg flex flex-col transition-all duration-300 ease-in-out ${isTestPanelCollapsed ? 'w-12' : ''}`}
+              style={{ width: isTestPanelCollapsed ? '48px' : `${testPanelWidth}px` }}
+            >
+              {isTestPanelCollapsed ? (
+                <div className="h-full flex flex-col items-center py-4">
+                  <button
+                    onClick={() => setIsTestPanelCollapsed(false)}
+                    className="w-8 h-8 bg-primary text-white rounded-md hover:bg-primary-hover transition-colors flex items-center justify-center mb-2"
+                    title="Expand Test Panel"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+                  <div className="text-xs text-app-text-subtle transform -rotate-90 whitespace-nowrap mt-4">
+                    Test
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between p-4 border-b border-app-border">
+                    <h2 className="text-lg font-semibold text-app-text">Test Agent</h2>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => setIsTestPanelCollapsed(true)}
+                        className="w-6 h-6 text-app-text-subtle hover:text-app-text transition-colors"
+                        title="Collapse Test Panel"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setTestingNodeId(null);
+                          setTestMode(null);
+                        }}
+                        className="text-gray-400 hover:text-red-500 transition-colors"
+                        title="Close Test Panel"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto">
+                    {!testMode ? (
+                      <div className="p-4 space-y-4">
+                        <p className="text-sm text-app-text-subtle">Select a test mode:</p>
+                        <button
+                          onClick={() => setTestMode('dataset')}
+                          className="w-full py-2 px-4 bg-primary text-white rounded hover:bg-primary-hover transition-colors"
+                        >
+                          Test with Dataset
+                        </button>
+                        <button
+                          onClick={() => setTestMode('chat')}
+                          className="w-full py-2 px-4 border border-app-border text-app-text rounded hover:bg-gray-100 transition-colors"
+                        >
+                          Chat with Gemini
+                        </button>
+                      </div>
+                    ) : testMode === 'dataset' ? (
+                      <DatasetTestingPanel
+                        nodeId={testingNodeId}
+                        agentConfig={testingNodeId ? (nodeAgents[testingNodeId] || null) : null}
+                        onBack={() => setTestMode(null)}
+                      />
+                    ) : (
+                      <GeminiChatPanel
+                        nodeId={testingNodeId}
+                        agentConfig={testingNodeId ? (nodeAgents[testingNodeId] || null) : null}
+                        onBack={() => setTestMode(null)}
+                      />
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
           )}
         </main>
       </div>

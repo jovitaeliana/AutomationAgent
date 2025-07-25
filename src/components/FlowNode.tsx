@@ -18,9 +18,10 @@ interface FlowNodeProps {
   onDelete: (nodeId: string) => void;
   onPortMouseDown: (e: React.MouseEvent, nodeId: string) => void;
   onPortMouseUp: (e: React.MouseEvent, nodeId: string) => void;
+  onTest?: (nodeId: string) => void;
 }
 
-const FlowNode: React.FC<FlowNodeProps> = ({ node, isSelected, onSelect, onMove, onConfigure, onDelete, onPortMouseDown, onPortMouseUp }) => {
+const FlowNode: React.FC<FlowNodeProps> = ({ node, isSelected, onSelect, onMove, onConfigure, onDelete, onPortMouseDown, onPortMouseUp, onTest }) => {
   const selectedClasses = "border-primary ring-2 ring-primary/30";
   const dragHandleRef = useRef<HTMLButtonElement>(null);
 
@@ -60,8 +61,25 @@ const FlowNode: React.FC<FlowNodeProps> = ({ node, isSelected, onSelect, onMove,
         <p className="font-bold text-sm text-app-text">{node.title}</p>
         <p className="text-xs text-app-text-subtle">{node.type}</p>
       </div>
-      <div className="border-t border-app-border p-2 flex justify-center">
-        <button onClick={() => onConfigure(node.id)} className="text-xs font-semibold text-primary hover:text-primary-hover">Configure</button>
+      <div className="border-t border-app-border p-2 flex items-center justify-center">
+        <button
+          onClick={() => onConfigure(node.id)}
+          className="text-xs font-semibold text-primary hover:text-primary-hover mr-5"
+        >
+          Configure
+        </button>
+
+        {node.type.toLowerCase().includes('agent') && onTest && (
+          <>
+            <div className="h-4 w-px bg-gray-300 mx-1" /> {/* Vertical separator */}
+            <button
+              onClick={() => onTest(node.id)}
+              className="text-xs font-semibold text-primary hover:text-primary-hover ml-6"
+            >
+              Test
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

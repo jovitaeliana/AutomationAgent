@@ -62,6 +62,50 @@ function readFileContent(filePath, filename) {
   }
 }
 
+// SerpAPI Search Function
+async function performSerpAPISearch(query, apiKey, options = {}) {
+  try {
+    const {
+      location = 'Singapore',
+      hl = 'en',
+      gl = 'sg',
+      num = 10
+    } = options;
+
+    // Build SerpAPI URL with proper parameters
+    const params = new URLSearchParams({
+      q: query,
+      location: location,
+      hl: hl,
+      gl: gl,
+      num: num.toString(),
+      api_key: apiKey
+    });
+
+    const url = `https://serpapi.com/search.json?${params.toString()}`;
+    console.log('SerpAPI URL:', url);
+
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('SerpAPI error response:', errorText);
+      throw new Error(`SerpAPI request failed (${response.status}): ${errorText}`);
+    }
+
+    const data = await response.json();
+
+    if (data.error) {
+      throw new Error(`SerpAPI error: ${data.error}`);
+    }
+
+    return data;
+  } catch (error) {
+    console.error('SerpAPI search failed:', error);
+    throw error;
+  }
+}
+
 // MCQ Generation with Gemini API
 async function generateMCQWithGemini(content, apiKey) {
   try {
@@ -534,10 +578,60 @@ app.listen(PORT, () => {
   console.log('  POST /flows/nodes/add');
   console.log('  DELETE /flows/nodes/:nodeId');
   console.log('  POST /flows/connections');
+  console.log('  POST /search');
   console.log('  GET  /automations');
   console.log('  GET  /ragModels');
   console.log('  GET  /availableNodes');
   console.log('  GET  /initialFlowNodes');
+});
+
+// SerpAPI Search endpoint
+app.post('/search', async (req, res) => {
+  try {
+    const { query, apiKey, options = {} } = req.body;
+
+    if (!query) {
+      return res.status(400).json({
+        error: 'Query is required'
+      });
+    }
+
+    if (!apiKey) {
+      return res.status(400).json({
+        error: 'SerpAPI key is required'
+      });
+    }
+
+    console.log('Performing search:', query);
+    console.log('Options:', options);
+
+    const searchResults = await performSerpAPISearch(query, apiKey, options);
+
+    // Extract and format the organic results
+    const organicResults = searchResults.organic_results || [];
+    const formattedResults = organicResults.map((result, index) => ({
+      position: index + 1,
+      title: result.title,
+      snippet: result.snippet,
+      link: result.link,
+      displayedLink: result.displayed_link
+    }));
+
+    res.json({
+      success: true,
+      query: query,
+      results: formattedResults,
+      totalResults: organicResults.length,
+      searchInformation: searchResults.search_information
+    });
+
+  } catch (error) {
+    console.error('Search endpoint error:', error);
+    res.status(500).json({
+      error: 'Search failed',
+      details: error.message
+    });
+  }
 });
 
 export default app;
