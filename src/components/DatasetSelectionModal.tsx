@@ -89,8 +89,7 @@ const DatasetSelectionModal: React.FC<DatasetSelectionModalProps> = ({ isOpen, o
                 {datasets.map((dataset) => (
                   <div
                     key={dataset.id}
-                    className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 cursor-pointer transition-colors"
-                    onClick={() => handleSelect(dataset)}
+                    className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors"
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
@@ -109,34 +108,75 @@ const DatasetSelectionModal: React.FC<DatasetSelectionModalProps> = ({ isOpen, o
                         </div>
                       </div>
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleSelect(dataset);
-                        }}
-                        className="ml-4 px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
+                        onClick={() => handleSelect(dataset)}
+                        className="ml-4 px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors font-medium"
                       >
                         Select
                       </button>
                     </div>
 
-                    {/* Optional: Show preview of questions if available */}
+                    {/* Show preview of questions if available */}
                     {dataset.questions && dataset.questions.length > 0 && (
                       <div className="mt-3 pt-3 border-t border-gray-200">
                         <details className="group">
                           <summary className="cursor-pointer text-sm font-medium text-blue-600 hover:text-blue-800">
-                            Preview Questions ({dataset.questions.length})
+                            Preview All Questions ({dataset.questions.length})
                           </summary>
-                          <div className="mt-2 space-y-1 max-h-20 overflow-y-auto">
-                            {dataset.questions.slice(0, 2).map((question: any, index: number) => (
-                              <div key={index} className="text-xs text-gray-600 pl-4">
-                                <span className="font-medium">{index + 1}.</span> {question.question}
-                              </div>
-                            ))}
-                            {dataset.questions.length > 2 && (
-                              <div className="text-xs text-gray-500 pl-4">
-                                ... and {dataset.questions.length - 2} more questions
-                              </div>
-                            )}
+                          <div className="mt-3 max-h-48 overflow-y-auto border border-gray-200 rounded-lg bg-gray-50">
+                            <div className="p-3 space-y-3">
+                              {dataset.questions.map((question: any, index: number) => (
+                                <div key={index} className="bg-white rounded-lg p-3 border border-gray-100">
+                                  <p className="font-medium text-sm text-gray-900 mb-2">
+                                    {index + 1}. {question.question}
+                                  </p>
+                                  
+                                  {/* Show options if it's MCQ */}
+                                  {question.options && question.options.length > 0 && (
+                                    <div className="ml-4 space-y-1">
+                                      {question.options.map((option: string, optIndex: number) => (
+                                        <div 
+                                          key={optIndex} 
+                                          className={`text-xs flex items-center ${
+                                            option === question.correctAnswer 
+                                              ? 'text-green-700 font-semibold' 
+                                              : 'text-gray-600'
+                                          }`}
+                                        >
+                                          <span className="inline-block w-6 text-center font-medium">
+                                            {String.fromCharCode(65 + optIndex)}.
+                                          </span>
+                                          <span className={`flex-1 ${
+                                            option === question.correctAnswer 
+                                              ? 'bg-green-100 px-2 py-1 rounded' 
+                                              : ''
+                                          }`}>
+                                            {option}
+                                            {option === question.correctAnswer && (
+                                              <span className="ml-2 text-green-600">✓</span>
+                                            )}
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                  
+                                  {/* Show explanation if available */}
+                                  {question.explanation && (
+                                    <div className="mt-2 ml-4 text-xs text-gray-500 italic bg-blue-50 p-2 rounded border-l-2 border-blue-200">
+                                      💡 <strong>Explanation:</strong> {question.explanation}
+                                    </div>
+                                  )}
+                                  
+                                  {/* Show answer for non-MCQ questions */}
+                                  {!question.options && question.answer && (
+                                    <div className="mt-2 ml-4 text-xs">
+                                      <span className="font-medium text-green-700">Answer:</span>
+                                      <span className="ml-1 text-gray-600">{question.answer}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         </details>
                       </div>
