@@ -46,6 +46,10 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
   const [error, setError] = useState<string | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   
+  // Loading states for operations
+  const [deletingNodeId, setDeletingNodeId] = useState<string | null>(null);
+  const [isConfigSaving, setIsConfigSaving] = useState(false);
+  
   // Dataset selection modal state
   const [isDatasetModalOpen, setIsDatasetModalOpen] = useState(false);
   const [pendingNodeData, setPendingNodeData] = useState<any>(null);
@@ -353,37 +357,45 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
     }
   };
 
-  // Delete node using Supabase
+  // Enhanced delete node with loading indication
   const deleteNode = async (nodeId: string) => {
+    // Start loading state
+    setDeletingNodeId(nodeId);
+    
     try {
+      // Perform deletion operations
       await flowService.deleteNode(nodeId);
-      
-      // Also delete the node configuration
       await nodeConfigService.deleteByNodeId(nodeId);
       
       console.log('Node and configuration deleted from Supabase');
+      
+      // Update local state after successful deletion
+      setNodes(prev => prev.filter(n => n.id !== nodeId));
+      setConnections(prev => prev.filter(c => c[0] !== nodeId && c[1] !== nodeId));
+      setNodeDatasets(prev => {
+        const newDatasets = { ...prev };
+        delete newDatasets[nodeId];
+        return newDatasets;
+      });
+      setNodeAgents(prev => {
+        const newAgents = { ...prev };
+        delete newAgents[nodeId];
+        return newAgents;
+      });
+      setAllNodeConfigs(prev => {
+        const newConfigs = { ...prev };
+        delete newConfigs[nodeId];
+        return newConfigs;
+      });
+      
     } catch (error) {
       console.error('Error deleting node:', error);
+      // Optionally show an error message to the user
+      alert('Error deleting node. Please try again.');
+    } finally {
+      // Clear loading state
+      setDeletingNodeId(null);
     }
-    
-    // Update local state
-    setNodes(prev => prev.filter(n => n.id !== nodeId));
-    setConnections(prev => prev.filter(c => c[0] !== nodeId && c[1] !== nodeId));
-    setNodeDatasets(prev => {
-      const newDatasets = { ...prev };
-      delete newDatasets[nodeId];
-      return newDatasets;
-    });
-    setNodeAgents(prev => {
-      const newAgents = { ...prev };
-      delete newAgents[nodeId];
-      return newAgents;
-    });
-    setAllNodeConfigs(prev => {
-      const newConfigs = { ...prev };
-      delete newConfigs[nodeId];
-      return newConfigs;
-    });
   };
 
   const handlePortMouseDown = useCallback((e: React.MouseEvent, fromNode: string) => {
@@ -545,20 +557,39 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
               </svg>
               
               {nodes.map(node => (
-                <FlowNode
-                  key={node.id}
-                  node={node}
-                  isSelected={selectedNodeId === node.id}
-                  onSelect={(e: React.MouseEvent, id: string) => { 
-                    e.stopPropagation(); 
-                    setSelectedNodeId(id); 
-                  }}
-                  onMove={moveNode}
-                  onDelete={deleteNode}
-                  onConfigure={setConfiguringNodeId}
-                  onPortMouseDown={handlePortMouseDown}
-                  onPortMouseUp={handlePortMouseUp}
-                />
+                <div key={node.id} className="relative">
+                  <FlowNode
+                    node={node}
+                    isSelected={selectedNodeId === node.id}
+                    onSelect={(e: React.MouseEvent, id: string) => { 
+                      e.stopPropagation(); 
+                      setSelectedNodeId(id); 
+                    }}
+                    onMove={moveNode}
+                    onDelete={deleteNode}
+                    onConfigure={setConfiguringNodeId}
+                    onPortMouseDown={handlePortMouseDown}
+                    onPortMouseUp={handlePortMouseUp}
+                  />
+                  
+                  {/* Delete Loading Overlay */}
+                  {deletingNodeId === node.id && (
+                    <div 
+                      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+                    >
+                      <div 
+                        className="flex flex-col items-center space-y-2 bg-gray-800 p-4 rounded-lg shadow-lg"
+                        style={{
+                          width: '220px',
+                          minHeight: '80px'
+                        }}
+                      >
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+                        <span className="text-white text-xs font-medium">Deleting...</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
             
@@ -581,6 +612,8 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
             onClose={() => setConfiguringNodeId(null)}
             onSave={async () => {
               if (configuringNodeId) {
+                setIsConfigSaving(true);
+                
                 const config = nodeDatasets[configuringNodeId] || 
                             nodeAgents[configuringNodeId] || 
                             allNodeConfigs[configuringNodeId];
@@ -596,11 +629,19 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
                   console.log('✅ Configuration saved for node:', configuringNodeId);
                   console.log('Config data:', config);
                   
-                  alert('Configuration saved successfully!');
+                  // Show loading feedback instead of alert for better UX
+                  if (isConfigSaving) {
+                    // You can add a toast notification here instead of alert
+                    setTimeout(() => {
+                      alert('Configuration saved successfully!');
+                    }, 100);
+                  }
                   setConfiguringNodeId(null);
                 } catch (error) {
                   console.error('Error saving configuration:', error);
                   alert('Error saving configuration. Please try again.');
+                } finally {
+                  setIsConfigSaving(false);
                 }
               }
             }}
