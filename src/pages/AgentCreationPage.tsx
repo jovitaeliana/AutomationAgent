@@ -50,6 +50,11 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
   const [deletingNodeId, setDeletingNodeId] = useState<string | null>(null);
   const [isConfigSaving, setIsConfigSaving] = useState(false);
   
+  // Panel states
+  const [leftPanelWidth, setLeftPanelWidth] = useState(320);
+  const [isLeftPanelCollapsed, setIsLeftPanelCollapsed] = useState(false);
+  const [isResizingLeft, setIsResizingLeft] = useState(false);
+  
   // Dataset selection modal state
   const [isDatasetModalOpen, setIsDatasetModalOpen] = useState(false);
   const [pendingNodeData, setPendingNodeData] = useState<any>(null);
@@ -78,6 +83,26 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
     }, 500),
     []
   );
+
+  // Panel resize handlers
+  const handleLeftResize = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizingLeft(true);
+    
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const newWidth = Math.max(200, Math.min(600, moveEvent.clientX));
+      setLeftPanelWidth(newWidth);
+    };
+    
+    const handleMouseUp = () => {
+      setIsResizingLeft(false);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, []);
 
   // Fetch initial data from Supabase and restore all configurations
   useEffect(() => {
@@ -453,7 +478,50 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
 
   return (
     <div className="min-h-screen flex overflow-hidden bg-gradient-to-br from-app-bg-highlight to-app-bg-content">
-      <FlowSidebar nodes={availableNodes} isLoading={isLoading} error={error} />
+      {/* Left Panel - FlowSidebar */}
+      <div 
+        className={`${isLeftPanelCollapsed ? 'w-12' : ''} bg-app-bg-content border-r border-app-border flex-shrink-0 relative transition-all duration-300 ease-in-out`}
+        style={{ width: isLeftPanelCollapsed ? '48px' : `${leftPanelWidth}px` }}
+      >
+        {isLeftPanelCollapsed ? (
+          <div className="h-full flex flex-col items-center py-4">
+            <button
+              onClick={() => setIsLeftPanelCollapsed(false)}
+              className="w-8 h-8 bg-primary text-white rounded-md hover:bg-primary-hover transition-colors flex items-center justify-center"
+              title="Expand Sidebar"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center justify-between p-4 border-b border-app-border">
+              <h2 className="text-lg font-semibold text-app-text">Components</h2>
+              <button
+                onClick={() => setIsLeftPanelCollapsed(true)}
+                className="w-6 h-6 text-app-text-subtle hover:text-app-text transition-colors"
+                title="Collapse Sidebar"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+            </div>
+            <FlowSidebar nodes={availableNodes} isLoading={isLoading} error={error} />
+          </>
+        )}
+        
+        {/* Left Resize Handle */}
+        {!isLeftPanelCollapsed && (
+          <div
+            className={`absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary transition-colors ${isResizingLeft ? 'bg-primary' : 'bg-transparent'}`}
+            onMouseDown={handleLeftResize}
+          />
+        )}
+      </div>
+
       <div className="flex-1 flex flex-col">
         <header className="bg-app-bg-content border-b border-app-border px-6 py-4 flex items-center justify-between">
           <h1 className="text-2xl font-bold text-app-text">Flow Builder</h1>
@@ -484,6 +552,7 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
             <button className="bg-primary text-white font-semibold py-2 px-4 rounded-lg hover:bg-primary-hover">Create Flow</button>
           </div>
         </header>
+        
         <main className="flex-1 flex overflow-hidden">
           <div 
             ref={canvasRef} 
@@ -557,39 +626,20 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
               </svg>
               
               {nodes.map(node => (
-                <div key={node.id} className="relative">
-                  <FlowNode
-                    node={node}
-                    isSelected={selectedNodeId === node.id}
-                    onSelect={(e: React.MouseEvent, id: string) => { 
-                      e.stopPropagation(); 
-                      setSelectedNodeId(id); 
-                    }}
-                    onMove={moveNode}
-                    onDelete={deleteNode}
-                    onConfigure={setConfiguringNodeId}
-                    onPortMouseDown={handlePortMouseDown}
-                    onPortMouseUp={handlePortMouseUp}
-                  />
-                  
-                  {/* Delete Loading Overlay */}
-                  {deletingNodeId === node.id && (
-                    <div 
-                      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-                    >
-                      <div 
-                        className="flex flex-col items-center space-y-2 bg-gray-800 p-4 rounded-lg shadow-lg"
-                        style={{
-                          width: '220px',
-                          minHeight: '80px'
-                        }}
-                      >
-                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
-                        <span className="text-white text-xs font-medium">Deleting...</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                <FlowNode
+                  key={node.id}
+                  node={node}
+                  isSelected={selectedNodeId === node.id}
+                  onSelect={(e: React.MouseEvent, id: string) => { 
+                    e.stopPropagation(); 
+                    setSelectedNodeId(id); 
+                  }}
+                  onMove={moveNode}
+                  onDelete={deleteNode}
+                  onConfigure={setConfiguringNodeId}
+                  onPortMouseDown={handlePortMouseDown}
+                  onPortMouseUp={handlePortMouseUp}
+                />
               ))}
             </div>
             
@@ -598,54 +648,68 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
               <div>Ctrl/Cmd + Scroll: Zoom</div>
               <div>Alt + Drag or Middle Click: Pan</div>
             </div>
+            
+            {/* Full-Screen Delete Loading Overlay */}
+            {deletingNodeId && (
+              <div className="absolute inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
+                <div className="bg-white rounded-lg p-8 shadow-2xl flex flex-col items-center space-y-4 min-w-[300px]">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-primary"></div>
+                  <div className="text-center">
+                    <h3 className="text-lg font-semibold text-app-text mb-2">Deleting Node</h3>
+                    <p className="text-sm text-app-text-subtle">
+                      Removing node and cleaning up configurations...
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-          
-          {/* Enhanced Configuration Panel with persistent data */}
-          <ConfigurationPanel
-            selectedNode={nodes.find(n => n.id === configuringNodeId) || null}
-            nodeConfig={configuringNodeId ? (
-              nodeDatasets[configuringNodeId] || 
-              nodeAgents[configuringNodeId] || 
-              allNodeConfigs[configuringNodeId]
-            ) : null}
-            onConfigChange={handleConfigChange}
-            onClose={() => setConfiguringNodeId(null)}
-            onSave={async () => {
-              if (configuringNodeId) {
-                setIsConfigSaving(true);
-                
-                const config = nodeDatasets[configuringNodeId] || 
-                            nodeAgents[configuringNodeId] || 
-                            allNodeConfigs[configuringNodeId];
-                
-                try {
-                  const selectedNode = nodes.find(n => n.id === configuringNodeId);
-                  await nodeConfigService.saveConfiguration(
-                    configuringNodeId, 
-                    config, 
-                    selectedNode?.type || 'unknown'
-                  );
+
+          {/* Right Panel - Configuration Panel */}
+          {configuringNodeId && (
+            <ConfigurationPanel
+              selectedNode={nodes.find(n => n.id === configuringNodeId) || null}
+              nodeConfig={configuringNodeId ? (
+                nodeDatasets[configuringNodeId] || 
+                nodeAgents[configuringNodeId] || 
+                allNodeConfigs[configuringNodeId]
+              ) : null}
+              onConfigChange={handleConfigChange}
+              onClose={() => setConfiguringNodeId(null)}
+              onSave={async () => {
+                if (configuringNodeId) {
+                  setIsConfigSaving(true);
                   
-                  console.log('✅ Configuration saved for node:', configuringNodeId);
-                  console.log('Config data:', config);
+                  const config = nodeDatasets[configuringNodeId] || 
+                              nodeAgents[configuringNodeId] || 
+                              allNodeConfigs[configuringNodeId];
                   
-                  // Show loading feedback instead of alert for better UX
-                  if (isConfigSaving) {
-                    // You can add a toast notification here instead of alert
-                    setTimeout(() => {
-                      alert('Configuration saved successfully!');
-                    }, 100);
+                  try {
+                    const selectedNode = nodes.find(n => n.id === configuringNodeId);
+                    await nodeConfigService.saveConfiguration(
+                      configuringNodeId, 
+                      config, 
+                      selectedNode?.type || 'unknown'
+                    );
+                    
+                    console.log('✅ Configuration saved for node:', configuringNodeId);
+                    console.log('Config data:', config);
+                    
+                    alert('Configuration saved successfully!');
+                    setConfiguringNodeId(null);
+                  } catch (error) {
+                    console.error('Error saving configuration:', error);
+                    alert('Error saving configuration. Please try again.');
+                  } finally {
+                    setIsConfigSaving(false);
                   }
-                  setConfiguringNodeId(null);
-                } catch (error) {
-                  console.error('Error saving configuration:', error);
-                  alert('Error saving configuration. Please try again.');
-                } finally {
-                  setIsConfigSaving(false);
                 }
-              }
-            }}
-          />
+              }}
+              initialWidth={400}
+              minWidth={300}
+              maxWidth={800}
+            />
+          )}
         </main>
       </div>
       
