@@ -202,7 +202,7 @@ const KnowledgeBaseConfig: React.FC<KnowledgeBaseConfigProps> = ({
   return (
     <div className="space-y-3">
       <div>
-        <h4 className="font-medium text-gray-900 mb-2">Knowledge Base Documents</h4>
+        <h4 className="font-medium text-gray-900 mb-2">Knowledge Base Sources</h4>
         <p className="text-sm text-gray-600">
           Upload JSON, CSV, or TXT documents or reference URLs to build your knowledge base for RAG processing.
         </p>
@@ -213,7 +213,7 @@ const KnowledgeBaseConfig: React.FC<KnowledgeBaseConfigProps> = ({
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
           <div className="flex items-center gap-2 mb-2">
             <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-            <h5 className="font-medium text-blue-900">Currently Selected Document</h5>
+            <h5 className="font-medium text-blue-900">Currently Selected Source</h5>
           </div>
           <div className="flex items-center gap-3">
             <FileText className="w-4 h-4 text-blue-600 flex-shrink-0" />
@@ -242,13 +242,13 @@ const KnowledgeBaseConfig: React.FC<KnowledgeBaseConfigProps> = ({
       {/* Upload Section */}
       <div className="border border-gray-200 rounded-lg">
         <div className="flex items-center justify-between p-3">
-          <h5 className="font-medium text-gray-900">Add New Document</h5>
+          <h5 className="font-medium text-gray-900">Add New Source</h5>
           <button
             onClick={() => setShowUploadForm(!showUploadForm)}
             className="flex items-center gap-2 px-3 py-1.5 bg-primary text-white rounded-md hover:bg-primary-hover transition-colors text-sm"
           >
             <Upload className="w-4 h-4" />
-            Upload Document
+            Upload Source
           </button>
         </div>
 
@@ -380,7 +380,7 @@ const KnowledgeBaseConfig: React.FC<KnowledgeBaseConfigProps> = ({
       {/* Documents List */}
       <div>
         <h5 className="font-medium text-gray-900 mb-2">
-          Uploaded Documents ({documents.length})
+          Uploaded Sources ({documents.length})
         </h5>
         
         {isLoading ? (
