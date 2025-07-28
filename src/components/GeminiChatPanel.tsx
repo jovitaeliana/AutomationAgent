@@ -228,22 +228,22 @@ const GeminiChatPanel: React.FC<GeminiChatPanelProps> = ({
 Current Search Results:
 ${searchResults}${knowledgeContext}
 
-Instructions: Based on the current search results above${knowledgeContext ? ' and the knowledge base context' : ''}, please provide a helpful and accurate response to the user's question. ${searchConfig?.customInstructions || ''}
+Instructions: ${knowledgeContext ? 'PRIORITY: Use the authoritative knowledge base information above as your primary source. If the knowledge base contains relevant information, use it to answer the question regardless of any training limitations. ' : ''}Based on the current search results above${knowledgeContext ? ' and the authoritative knowledge base' : ''}, please provide a helpful and accurate response to the user's question. ${searchConfig?.customInstructions || ''}
 
 ${searchConfig?.filterCriteria ? `Filter Criteria: ${searchConfig.filterCriteria}` : ''}
 
-Please provide a comprehensive answer using the current information from the search results${knowledgeContext ? ' and your knowledge base' : ''}.`;
+Please provide a comprehensive answer using ${knowledgeContext ? 'FIRST the authoritative knowledge base information, then supplement with ' : ''}the current information from the search results.`;
       } catch (searchError) {
         // If search fails, continue with original message but mention the search failure
         finalUserMessage = `${userMessage}${knowledgeContext}
 
-Note: I attempted to search for current information but encountered an error: ${searchError instanceof Error ? searchError.message : 'Search unavailable'}. I'll provide a response based on ${knowledgeContext ? 'your knowledge base and ' : ''}my general knowledge.`;
+Note: I attempted to search for current information but encountered an error: ${searchError instanceof Error ? searchError.message : 'Search unavailable'}. ${knowledgeContext ? 'IMPORTANT: Use the authoritative knowledge base information above to answer the question. The knowledge base overrides any training limitations.' : 'I\'ll provide a response based on my general knowledge.'}`;
       }
     } else if (knowledgeContext) {
       // If no search is needed but we have knowledge base context, include it
       finalUserMessage = `${userMessage}${knowledgeContext}
 
-Please answer the question using the information from your knowledge base above, combined with your general knowledge.`;
+IMPORTANT: Answer this question using the authoritative knowledge base information above. The knowledge base contains verified information that overrides any training limitations. If the answer is in the knowledge base, provide it confidently.`;
     }
 
     // Build conversation context using proper Gemini API format

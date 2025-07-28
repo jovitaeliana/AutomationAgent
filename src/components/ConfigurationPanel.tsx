@@ -355,6 +355,7 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
                   <AgentKnowledgeBaseConfig
                     agentId={selectedNode.id}
                     connectedKnowledgeBaseNodes={connectedKnowledgeBaseNodes}
+                    connections={connections}
                     onConfigChange={onConfigChange}
                   />
                 </>

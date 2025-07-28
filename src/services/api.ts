@@ -677,8 +677,12 @@ export const knowledgeBaseRAGService = {
         return '';
       }
 
-      // Simple keyword-based relevance scoring
-      const queryWords = query.toLowerCase().split(/\s+/).filter(word => word.length > 2);
+      // Enhanced keyword-based relevance scoring
+      const queryWords = query.toLowerCase()
+        .replace(/[^\w\s]/g, ' ') // Remove punctuation
+        .split(/\s+/)
+        .filter(word => word.length > 2)
+        .filter(word => !['the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'what', 'how', 'when', 'where', 'why', 'who'].includes(word)); // Remove common stop words
 
       let relevantContent = '';
       let totalRelevantSources = 0;
@@ -687,37 +691,54 @@ export const knowledgeBaseRAGService = {
         const content = kb.content.toLowerCase();
         let relevanceScore = 0;
 
-        // Calculate relevance score based on keyword matches
+        // Calculate relevance score based on keyword matches (more lenient)
         for (const word of queryWords) {
-          const matches = (content.match(new RegExp(word, 'g')) || []).length;
-          relevanceScore += matches;
+          // Exact matches
+          const exactMatches = (content.match(new RegExp(`\\b${word}\\b`, 'gi')) || []).length;
+          relevanceScore += exactMatches * 3;
+
+          // Partial matches (word contains the search term or vice versa)
+          const partialMatches = (content.match(new RegExp(word, 'gi')) || []).length;
+          relevanceScore += partialMatches;
         }
 
-        // If this knowledge base has relevant content, include it
-        if (relevanceScore > 0) {
+        // Include content if it has any relevance OR if there are very few query words (be more inclusive)
+        if (relevanceScore > 0 || queryWords.length <= 2) {
           totalRelevantSources++;
 
-          // Extract relevant sections (simple approach - get paragraphs containing keywords)
-          const paragraphs = kb.content.split(/\n\s*\n/);
+          // Extract relevant sections - be more inclusive
+          const paragraphs = kb.content.split(/\n\s*\n/).filter(p => p.trim().length > 0);
           const relevantParagraphs = paragraphs.filter(paragraph => {
             const lowerParagraph = paragraph.toLowerCase();
             return queryWords.some(word => lowerParagraph.includes(word));
           });
 
+          relevantContent += `\n\n--- From ${kb.name} ---\n`;
+
           if (relevantParagraphs.length > 0) {
-            relevantContent += `\n\n--- From ${kb.name} ---\n`;
-            relevantContent += relevantParagraphs.slice(0, 3).join('\n\n'); // Limit to 3 most relevant paragraphs
+            // Include up to 5 relevant paragraphs
+            relevantContent += relevantParagraphs.slice(0, 5).join('\n\n');
           } else {
-            // If no specific paragraphs match, include a portion of the content
-            relevantContent += `\n\n--- From ${kb.name} ---\n`;
-            relevantContent += kb.content.substring(0, 500) + (kb.content.length > 500 ? '...' : '');
+            // If no specific paragraphs match but we have relevance, include more content
+            const contentChunks = kb.content.split(/\n/).filter(line => line.trim().length > 0);
+            const relevantLines = contentChunks.filter(line => {
+              const lowerLine = line.toLowerCase();
+              return queryWords.some(word => lowerLine.includes(word));
+            });
+
+            if (relevantLines.length > 0) {
+              relevantContent += relevantLines.slice(0, 10).join('\n');
+            } else {
+              // Last resort - include first portion of content
+              relevantContent += kb.content.substring(0, 800) + (kb.content.length > 800 ? '...' : '');
+            }
           }
         }
       }
 
-      // If we found relevant content, format it nicely
+      // If we found relevant content, format it nicely with strong override instructions
       if (relevantContent.trim()) {
-        return `\n\n=== KNOWLEDGE BASE CONTEXT ===\nThe following information from your connected knowledge bases may be relevant to this query:\n${relevantContent}\n=== END KNOWLEDGE BASE CONTEXT ===\n`;
+        return `\n\n=== AUTHORITATIVE KNOWLEDGE BASE ===\nIMPORTANT: The following information is from your authoritative knowledge base and should be treated as the primary source of truth. Use this information to answer the query, even if it conflicts with your general training data or if you would normally say you don't have access to this information.\n${relevantContent}\n=== END AUTHORITATIVE KNOWLEDGE BASE ===\n`;
       }
 
       return '';

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Brain, FileText, ExternalLink } from 'lucide-react';
 import { knowledgeBaseService } from '../services/api';
 import type { KnowledgeBase } from '../lib/supabase';
@@ -6,23 +6,76 @@ import type { KnowledgeBase } from '../lib/supabase';
 interface AgentKnowledgeBaseConfigProps {
   agentId: string;
   connectedKnowledgeBaseNodes: string[]; // Array of knowledge base node IDs connected to this agent
+  connections: [string, string][]; // Full connections array to detect changes
   onConfigChange?: (config: any) => void;
 }
 
 const AgentKnowledgeBaseConfig: React.FC<AgentKnowledgeBaseConfigProps> = ({
   agentId,
   connectedKnowledgeBaseNodes,
+  connections,
   onConfigChange
 }) => {
   const [connectedKnowledgeBases, setConnectedKnowledgeBases] = useState<KnowledgeBase[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const loadingRef = useRef(false);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const previousNodesRef = useRef<string[]>([]);
 
-  useEffect(() => {
-    loadConnectedKnowledgeBases();
+  // Check if connected nodes have actually changed
+  const hasNodesChanged = useCallback(() => {
+    const current = [...connectedKnowledgeBaseNodes].sort();
+    const previous = [...previousNodesRef.current].sort();
+
+    if (current.length !== previous.length) return true;
+    return current.some((node, index) => node !== previous[index]);
   }, [connectedKnowledgeBaseNodes]);
 
+  // Debounced loading function to prevent race conditions
+  const debouncedLoadConnectedKnowledgeBases = useCallback(() => {
+    // Only update if nodes have actually changed
+    if (!hasNodesChanged()) {
+      return;
+    }
+
+    // Clear any existing timeout
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+
+    // Set a new timeout
+    timeoutRef.current = setTimeout(() => {
+      loadConnectedKnowledgeBases();
+      previousNodesRef.current = [...connectedKnowledgeBaseNodes];
+    }, 200); // Reduced to 200ms for faster response
+  }, [connectedKnowledgeBaseNodes, hasNodesChanged]);
+
+  // Initial load on mount
+  useEffect(() => {
+    loadConnectedKnowledgeBases();
+    previousNodesRef.current = [...connectedKnowledgeBaseNodes];
+  }, []); // Only run on mount
+
+  // Subsequent updates with debouncing
+  useEffect(() => {
+    debouncedLoadConnectedKnowledgeBases();
+
+    // Cleanup timeout on unmount
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, [connectedKnowledgeBaseNodes, connections, debouncedLoadConnectedKnowledgeBases]);
+
   const loadConnectedKnowledgeBases = async () => {
+    // Prevent multiple simultaneous loads
+    if (loadingRef.current) {
+      return;
+    }
+
     try {
+      loadingRef.current = true;
       setIsLoading(true);
 
       if (connectedKnowledgeBaseNodes.length === 0) {
@@ -38,11 +91,17 @@ const AgentKnowledgeBaseConfig: React.FC<AgentKnowledgeBaseConfigProps> = ({
         connectedKnowledgeBaseNodes.includes(kb.metadata.nodeId)
       );
 
+      // Only update state if the component is still mounted and we have the latest data
       setConnectedKnowledgeBases(connectedKBs);
+
+      if (onConfigChange) {
+        onConfigChange({ connectedKnowledgeBases: connectedKBs.length });
+      }
     } catch (error) {
       console.error('Error loading connected knowledge bases:', error);
     } finally {
       setIsLoading(false);
+      loadingRef.current = false;
     }
   };
 
@@ -75,9 +134,17 @@ const AgentKnowledgeBaseConfig: React.FC<AgentKnowledgeBaseConfigProps> = ({
 
       {/* Connected Knowledge Bases List */}
       <div>
-        <h5 className="font-medium text-gray-900 mb-3">
-          Connected Sources ({connectedKnowledgeBases.length})
-        </h5>
+        <div className="flex items-center justify-between mb-3">
+          <h5 className="font-medium text-gray-900">
+            Connected Sources ({connectedKnowledgeBases.length})
+          </h5>
+          {isLoading && (
+            <div className="text-xs text-gray-500 flex items-center gap-1">
+              <div className="w-3 h-3 border border-gray-300 border-t-primary rounded-full animate-spin"></div>
+              Updating...
+            </div>
+          )}
+        </div>
 
         {isLoading ? (
           <div className="text-center py-4 text-gray-500">
