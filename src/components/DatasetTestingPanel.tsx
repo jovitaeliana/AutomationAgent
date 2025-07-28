@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Play, Pause, RotateCcw, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { datasetService, knowledgeBaseRAGService } from '../services/api';
 import type { Dataset, Agent } from '../lib/supabase';
@@ -45,6 +45,7 @@ const DatasetTestingPanel: React.FC<DatasetTestingPanelProps> = ({
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const pauseRequestedRef = useRef(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [testCompleted, setTestCompleted] = useState(false);
@@ -440,19 +441,32 @@ IMPORTANT: Answer this question using the authoritative knowledge base informati
 
     setIsRunning(true);
     setIsPaused(false);
+    pauseRequestedRef.current = false;
     setError(null);
     setTestResults([]);
     setCurrentQuestionIndex(0);
     setTestCompleted(false);
 
     for (let i = 0; i < questions.length; i++) {
-      if (isPaused) break;
+      // Check for pause request before each iteration
+      if (pauseRequestedRef.current) {
+        setIsPaused(true);
+        setIsRunning(false);
+        return;
+      }
 
       setCurrentQuestionIndex(i);
 
       try {
         const result = await runSingleTest(i);
         setTestResults(prev => [...prev, result]);
+
+        // Check for pause request after each test
+        if (pauseRequestedRef.current) {
+          setIsPaused(true);
+          setIsRunning(false);
+          return;
+        }
 
         // Small delay between requests to avoid rate limiting
         await new Promise(resolve => setTimeout(resolve, 1000));
@@ -463,19 +477,68 @@ IMPORTANT: Answer this question using the authoritative knowledge base informati
     }
 
     setIsRunning(false);
-    if (!isPaused) {
+    if (!pauseRequestedRef.current) {
       setTestCompleted(true);
     }
   };
 
   const pauseTesting = () => {
-    setIsPaused(true);
+    pauseRequestedRef.current = true;
+  };
+
+  const resumeTesting = async () => {
+    if (!selectedDataset || questions.length === 0) {
+      setError('Please select a dataset with questions');
+      return;
+    }
+
+    setIsRunning(true);
+    setIsPaused(false);
+    pauseRequestedRef.current = false;
+    setError(null);
+
+    // Resume from where we left off
+    const startIndex = testResults.length;
+
+    for (let i = startIndex; i < questions.length; i++) {
+      // Check for pause request before each iteration
+      if (pauseRequestedRef.current) {
+        setIsPaused(true);
+        setIsRunning(false);
+        return;
+      }
+
+      setCurrentQuestionIndex(i);
+
+      try {
+        const result = await runSingleTest(i);
+        setTestResults(prev => [...prev, result]);
+
+        // Check for pause request after each test
+        if (pauseRequestedRef.current) {
+          setIsPaused(true);
+          setIsRunning(false);
+          return;
+        }
+
+        // Small delay between requests to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } catch (error) {
+        setError(error instanceof Error ? error.message : 'Test failed');
+        break;
+      }
+    }
+
     setIsRunning(false);
+    if (!pauseRequestedRef.current) {
+      setTestCompleted(true);
+    }
   };
 
   const resetTesting = () => {
     setIsRunning(false);
     setIsPaused(false);
+    pauseRequestedRef.current = false;
     setTestResults([]);
     setCurrentQuestionIndex(0);
     setError(null);
@@ -491,6 +554,7 @@ IMPORTANT: Answer this question using the authoritative knowledge base informati
     setTestCompleted(false);
     setIsRunning(false);
     setIsPaused(false);
+    pauseRequestedRef.current = false;
   };
 
   const getTestStats = () => {
@@ -605,7 +669,7 @@ IMPORTANT: Answer this question using the authoritative knowledge base informati
           {/* Test Controls */}
           <div className="p-4 border-b border-app-border">
             <div className="flex items-center space-x-2 mb-4">
-              {!isRunning ? (
+              {!isRunning && !isPaused ? (
                 <button
                   onClick={startTesting}
                   disabled={!getApiKey()}
@@ -613,6 +677,15 @@ IMPORTANT: Answer this question using the authoritative knowledge base informati
                 >
                   <Play size={16} />
                   <span>Start Test</span>
+                </button>
+              ) : isPaused ? (
+                <button
+                  onClick={resumeTesting}
+                  disabled={!getApiKey()}
+                  className="flex items-center space-x-2 px-3 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Play size={16} />
+                  <span>Resume Test</span>
                 </button>
               ) : (
                 <button
@@ -636,6 +709,12 @@ IMPORTANT: Answer this question using the authoritative knowledge base informati
             {!getApiKey() && (
               <div className="text-sm text-red-600 bg-red-50 p-2 rounded">
                 ⚠️ No Gemini API key found in agent configuration. Please configure the agent first.
+              </div>
+            )}
+
+            {isPaused && (
+              <div className="text-sm text-amber-600 bg-amber-50 p-2 rounded">
+                ⏸️ Test paused at question {testResults.length} of {questions.length}. Click "Resume Test" to continue.
               </div>
             )}
 
