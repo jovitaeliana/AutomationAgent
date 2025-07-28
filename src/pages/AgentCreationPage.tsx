@@ -502,10 +502,10 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
     setDeletingNodeId(nodeId);
     
     try {
-      // Check if this is a knowledge base node and clean up associated knowledge bases
+      // Check if this is a knowledge base node and clean up node references
       const nodeToDelete = nodes.find(n => n.id === nodeId);
       if (nodeToDelete?.title.includes('🧠')) {
-        // Find and delete knowledge bases associated with this node
+        // Find knowledge bases associated with this node and remove the node reference
         try {
           const allKnowledgeBases = await knowledgeBaseService.getAll();
           const associatedKBs = allKnowledgeBases.filter(kb =>
@@ -514,14 +514,19 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
             kb.metadata.nodeId === nodeId
           );
 
-          // Delete associated knowledge bases
+          // Remove nodeId from metadata instead of deleting the entire knowledge base
           for (const kb of associatedKBs) {
-            await knowledgeBaseService.delete(kb.id);
+            const updatedMetadata = { ...kb.metadata };
+            delete updatedMetadata.nodeId;
+
+            await knowledgeBaseService.update(kb.id, {
+              metadata: updatedMetadata
+            });
           }
 
-          console.log(`Deleted ${associatedKBs.length} knowledge bases associated with node ${nodeId}`);
+          console.log(`Removed node reference from ${associatedKBs.length} knowledge bases (documents preserved)`);
         } catch (error) {
-          console.error('Error cleaning up knowledge bases:', error);
+          console.error('Error cleaning up knowledge base node references:', error);
         }
       }
 

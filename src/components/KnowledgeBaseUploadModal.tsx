@@ -340,6 +340,15 @@ const KnowledgeBaseUploadModal: React.FC<KnowledgeBaseUploadModalProps> = ({
                             <span className="px-2 py-0.5 bg-app-bg-highlight rounded text-xs font-medium flex-shrink-0">
                               {source.source_type === 'url' ? 'URL' : 'File'}
                             </span>
+                            {source.metadata?.nodeId ? (
+                              <span className="px-2 py-0.5 bg-green-100 text-green-800 rounded text-xs font-medium flex-shrink-0">
+                                In Use
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs font-medium flex-shrink-0">
+                                Available
+                              </span>
+                            )}
                           </div>
                           {source.description && (
                             <p className="text-sm text-app-text-subtle mb-2 line-clamp-2">{source.description}</p>

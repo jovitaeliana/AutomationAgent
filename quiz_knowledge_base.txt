@@ -1,0 +1,39 @@
+1. What is the capital city of Singapore?
+
+A. Singapore ✓
+B. Kuala Lumpur
+C. Bangkok
+D. Jakarta
+💡 Singapore is a city-state, meaning its capital city is also Singapore.
+
+2. Which programming language is commonly used for web development?
+
+A. Python
+B. Java
+C. JavaScript ✓
+D. C++
+💡 JavaScript is a crucial language for front-end web development and is increasingly used on the back-end as well.
+
+3. What is the sum of 15 and 27?
+
+A. 32
+B. 42 ✓
+C. 37
+D. 22
+💡 Adding 15 and 27 results in 42.
+
+4. Who is the author of the dystopian novel '1984'?
+
+A. Aldous Huxley
+B. Ray Bradbury
+C. George Orwell ✓
+D. Ernest Hemingway
+💡 George Orwell wrote the influential novel '1984'.
+
+5. Which planet holds the title of the largest in our solar system?
+
+A. Earth
+B. Mars
+C. Saturn
+D. Jupiter ✓
+💡 Jupiter is significantly larger than any other planet in our solar system.
