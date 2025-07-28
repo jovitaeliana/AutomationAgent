@@ -80,6 +80,12 @@
           "icon": "📚",
           "title": "Document Q&A",
           "description": "Answers from your files"
+        },
+        {
+          "id": "knowledge-base",
+          "icon": "🧠",
+          "title": "Knowledge Base",
+          "description": "Upload documents for RAG"
         }
       ]
     },

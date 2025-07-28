@@ -4,6 +4,7 @@ import { X, ChevronRight, ChevronLeft } from 'lucide-react';
 import { InputField, TextareaField, SelectField } from './FormField';
 import type { FlowNodeData } from './FlowNode';
 import type { Dataset, Agent } from '../lib/supabase';
+import KnowledgeBaseConfig from './KnowledgeBaseConfig';
 
 interface ConfigurationPanelProps {
   selectedNode: FlowNodeData | null;
@@ -143,7 +144,8 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
 
   const isAgentNode = selectedNode.title.includes('🤖');
   const isDatasetNode = selectedNode.title.includes('📄') || selectedNode.type.toLowerCase().includes('document');
-  const hasConfigurableOptions = isAgentNode || isDatasetNode;
+  const isKnowledgeBaseNode = selectedNode.title.includes('🧠') && selectedNode.title.toLowerCase().includes('knowledge base');
+  const hasConfigurableOptions = isAgentNode || isDatasetNode || isKnowledgeBaseNode;
 
   return (
     <div 
@@ -181,7 +183,10 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
           {/* Fixed Header */}
           <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0">
             <h3 className="text-lg font-semibold text-gray-900">
-              {isAgentNode ? 'Agent Configuration' : isDatasetNode ? 'Dataset Configuration' : 'Node Information'}
+              {isAgentNode ? 'Agent Configuration' :
+               isDatasetNode ? 'Dataset Configuration' :
+               isKnowledgeBaseNode ? 'Knowledge Base Configuration' :
+               'Node Information'}
             </h3>
             <div className="flex items-center space-x-2">
               <button
@@ -348,8 +353,16 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
                 </div>
               )}
 
+              {/* Knowledge Base Configuration */}
+              {isKnowledgeBaseNode && (
+                <KnowledgeBaseConfig
+                  nodeId={selectedNode.id}
+                  onConfigChange={onConfigChange}
+                />
+              )}
+
               {/* Default node information */}
-              {!isAgentNode && !isDatasetNode && (
+              {!isAgentNode && !isDatasetNode && !isKnowledgeBaseNode && (
                 <div>
                   <div className="bg-gray-50 rounded-lg p-4">
                     <p className="text-sm text-gray-600">

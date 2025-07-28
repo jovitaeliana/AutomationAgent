@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase';
-import type { Dataset, FlowNode, FlowConnection, Preset, AvailableNode, Automation, RagModel, Agent } from '../lib/supabase';
+import type { Dataset, FlowNode, FlowConnection, Preset, AvailableNode, Automation, RagModel, Agent, KnowledgeBase } from '../lib/supabase';
 
 export const datasetService = {
   async getAll(): Promise<Dataset[]> {
@@ -509,14 +509,101 @@ export const nodeConfigService = {
     const { data, error } = await supabase
       .from('node_configurations')
       .select('*');
-    
+
     if (error) throw error;
-    
+
     const configurations: {[nodeId: string]: any} = {};
     data?.forEach(config => {
       configurations[config.node_id] = config.configuration;
     });
-    
+
     return configurations;
+  }
+};
+
+export const knowledgeBaseService = {
+  async getAll(): Promise<KnowledgeBase[]> {
+    const { data, error } = await supabase
+      .from('knowledge_bases')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  async getById(id: string): Promise<KnowledgeBase | null> {
+    const { data, error } = await supabase
+      .from('knowledge_bases')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null; // Not found
+      throw error;
+    }
+    return data;
+  },
+
+  async getByName(name: string): Promise<KnowledgeBase[]> {
+    const { data, error } = await supabase
+      .from('knowledge_bases')
+      .select('*')
+      .ilike('name', `%${name}%`)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  async create(knowledgeBase: {
+    name: string;
+    description?: string;
+    source_type: string;
+    source_url?: string;
+    file_name?: string;
+    file_path?: string;
+    file_type?: string;
+    file_size?: number;
+    content: string;
+    metadata?: any;
+  }): Promise<KnowledgeBase> {
+    const { data, error } = await supabase
+      .from('knowledge_bases')
+      .insert([{
+        ...knowledgeBase,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async update(id: string, updates: Partial<KnowledgeBase>): Promise<KnowledgeBase> {
+    const { data, error } = await supabase
+      .from('knowledge_bases')
+      .update({
+        ...updates,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async delete(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('knowledge_bases')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
   }
 };

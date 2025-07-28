@@ -10,8 +10,9 @@ import { BackButtonIcon } from '../components/Icons';
 import DatasetSelectionModal from '../components/DatasetSelectionModal';
 import AgentSelectionModal from '../components/AgentSelectionModal';
 import DatasetTestingPanel from '../components/DatasetTestingPanel';
+import KnowledgeBaseUploadModal from '../components/KnowledgeBaseUploadModal';
 import GeminiChatPanel from '../components/GeminiChatPanel';
-import { flowService, availableNodesService, nodeConfigService } from '../services/api';
+import { flowService, availableNodesService, nodeConfigService, knowledgeBaseService } from '../services/api';
 import type { Dataset, Agent } from '../lib/supabase';
 
 // Define the page names type
@@ -52,10 +53,7 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
   const [deletingNodeId, setDeletingNodeId] = useState<string | null>(null);
   const [isConfigSaving, setIsConfigSaving] = useState(false);
   
-  // Panel states
-  const [leftPanelWidth, setLeftPanelWidth] = useState(320);
-  const [isLeftPanelCollapsed, setIsLeftPanelCollapsed] = useState(false);
-  const [isResizingLeft, setIsResizingLeft] = useState(false);
+  // Panel states - removed left panel states as FlowSidebar now handles its own collapse
   
   // Dataset selection modal state
   const [isDatasetModalOpen, setIsDatasetModalOpen] = useState(false);
@@ -72,6 +70,11 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
   const [pendingAgentNodeData, setPendingAgentNodeData] = useState<any>(null);
   const [nodeAgents, setNodeAgents] = useState<{[nodeId: string]: Agent}>({});
   const [allNodeConfigs, setAllNodeConfigs] = useState<{[nodeId: string]: any}>({});
+
+  // Knowledge base modal state
+  const [isKnowledgeBaseModalOpen, setIsKnowledgeBaseModalOpen] = useState(false);
+  const [pendingKnowledgeBaseNodeData, setPendingKnowledgeBaseNodeData] = useState<any>(null);
+  const [isKnowledgeBaseUploading, setIsKnowledgeBaseUploading] = useState(false);
 
   const [testingNodeId, setTestingNodeId] = useState<string | null>(null);
   const [testMode, setTestMode] = useState<'dataset' | 'chat' | null>(null);
@@ -91,25 +94,7 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
     []
   );
 
-  // Panel resize handlers
-  const handleLeftResize = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsResizingLeft(true);
-    
-    const handleMouseMove = (moveEvent: MouseEvent) => {
-      const newWidth = Math.max(200, Math.min(600, moveEvent.clientX));
-      setLeftPanelWidth(newWidth);
-    };
-    
-    const handleMouseUp = () => {
-      setIsResizingLeft(false);
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-    
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  }, []);
+  // Panel resize handlers removed - FlowSidebar now handles its own collapse
 
   // Fetch initial data from Supabase and restore all configurations
   useEffect(() => {
@@ -297,14 +282,22 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
           y: (offset.y - canvasRect.top - pan.y) / zoom 
         };
         
+        // Check if this is a Knowledge Base node
+        if (item.title.toLowerCase().includes('knowledge base') || item.id === 'knowledge-base') {
+          setPendingKnowledgeBaseNodeData({
+            item,
+            position
+          });
+          setIsKnowledgeBaseModalOpen(true);
+        }
         // Check if this is a Document Q&A node
-        if (item.title.toLowerCase().includes('document q&a') || item.title.toLowerCase().includes('qa')) {
+        else if (item.title.toLowerCase().includes('document q&a') || item.title.toLowerCase().includes('qa')) {
           setPendingNodeData({
             item,
             position
           });
           setIsDatasetModalOpen(true);
-        } 
+        }
         // Check if this is a Saved Agent node
         else if (item.title.toLowerCase().includes('saved agent') || item.id === 'agent-saved') {
           setPendingAgentNodeData({
@@ -312,7 +305,7 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
             position
           });
           setIsAgentModalOpen(true);
-        } 
+        }
         else {
           // Create node directly for other types
           const newNode: FlowNodeData = {
@@ -386,6 +379,81 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
         agentName: agent.name,
         configuration: agent.configuration
       });
+    }
+  };
+
+  // Handle knowledge base document upload
+  const handleKnowledgeBaseUpload = async (data: {
+    type: 'file' | 'url';
+    file?: File;
+    url?: string;
+    name: string;
+    description?: string;
+  }) => {
+    if (pendingKnowledgeBaseNodeData) {
+      setIsKnowledgeBaseUploading(true);
+
+      try {
+        // Create the node first
+        const nodeId = `node-${Date.now()}`;
+        const newNode: FlowNodeData = {
+          id: nodeId,
+          title: `${pendingKnowledgeBaseNodeData.item.icon} ${pendingKnowledgeBaseNodeData.item.title}`,
+          type: pendingKnowledgeBaseNodeData.item.description,
+          position: pendingKnowledgeBaseNodeData.position,
+        };
+
+        let content = '';
+        let documentData: any = {
+          name: data.name,
+          description: data.description,
+          source_type: data.type,
+          content: '',
+          metadata: { nodeId }
+        };
+
+        if (data.type === 'file' && data.file) {
+          // Read file content
+          content = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target?.result as string);
+            reader.onerror = reject;
+            reader.readAsText(data.file!);
+          });
+
+          documentData = {
+            ...documentData,
+            file_name: data.file.name,
+            file_type: data.file.type || 'text/plain',
+            file_size: data.file.size,
+            content
+          };
+        } else if (data.type === 'url' && data.url) {
+          documentData = {
+            ...documentData,
+            source_url: data.url,
+            content: data.url // Store URL as content for now
+          };
+        }
+
+        // Save knowledge base document
+        await knowledgeBaseService.create(documentData);
+
+        // Save node to database
+        await createNode(newNode);
+
+        // Update local state
+        setNodes(prev => [...prev, newNode]);
+        setPendingKnowledgeBaseNodeData(null);
+        setIsKnowledgeBaseModalOpen(false);
+
+        console.log('Knowledge base document uploaded and node created');
+      } catch (error) {
+        console.error('Error uploading knowledge base document:', error);
+        alert('Failed to upload knowledge base document. Please try again.');
+      } finally {
+        setIsKnowledgeBaseUploading(false);
+      }
     }
   };
 
@@ -486,47 +554,8 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
   return (
     <div className="min-h-screen flex overflow-hidden bg-gradient-to-br from-app-bg-highlight to-app-bg-content">
       {/* Left Panel - FlowSidebar */}
-      <div 
-        className={`${isLeftPanelCollapsed ? 'w-12' : ''} bg-app-bg-content border-r border-app-border flex-shrink-0 relative transition-all duration-300 ease-in-out`}
-        style={{ width: isLeftPanelCollapsed ? '48px' : `${leftPanelWidth}px` }}
-      >
-        {isLeftPanelCollapsed ? (
-          <div className="h-full flex flex-col items-center py-4">
-            <button
-              onClick={() => setIsLeftPanelCollapsed(false)}
-              className="w-8 h-8 bg-primary text-white rounded-md hover:bg-primary-hover transition-colors flex items-center justify-center"
-              title="Expand Sidebar"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
-          </div>
-        ) : (
-          <>
-            <div className="flex items-center justify-between p-4 border-b border-app-border">
-              <h2 className="text-lg font-semibold text-app-text">Components</h2>
-              <button
-                onClick={() => setIsLeftPanelCollapsed(true)}
-                className="w-6 h-6 text-app-text-subtle hover:text-app-text transition-colors"
-                title="Collapse Sidebar"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-            </div>
-            <FlowSidebar nodes={availableNodes} isLoading={isLoading} error={error} />
-          </>
-        )}
-        
-        {/* Left Resize Handle */}
-        {!isLeftPanelCollapsed && (
-          <div
-            className={`absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary transition-colors ${isResizingLeft ? 'bg-primary' : 'bg-transparent'}`}
-            onMouseDown={handleLeftResize}
-          />
-        )}
+      <div className="bg-white border-r border-app-border flex-shrink-0 relative">
+        <FlowSidebar nodes={availableNodes} isLoading={isLoading} error={error} />
       </div>
 
       <div className="flex-1 flex flex-col">
@@ -828,6 +857,17 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
           setPendingAgentNodeData(null);
         }}
         onSelect={handleAgentSelect}
+      />
+
+      {/* Knowledge Base Upload Modal */}
+      <KnowledgeBaseUploadModal
+        isOpen={isKnowledgeBaseModalOpen}
+        onClose={() => {
+          setIsKnowledgeBaseModalOpen(false);
+          setPendingKnowledgeBaseNodeData(null);
+        }}
+        onUpload={handleKnowledgeBaseUpload}
+        isUploading={isKnowledgeBaseUploading}
       />
     </div>
   );

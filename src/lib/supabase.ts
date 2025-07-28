@@ -79,3 +79,19 @@ export interface Agent {
   created_at: string;
   updated_at: string;
 }
+
+export interface KnowledgeBase {
+  id: string;
+  name: string;
+  description?: string;
+  source_type: string; // 'file' or 'url'
+  source_url?: string;
+  file_name?: string;
+  file_path?: string;
+  file_type?: string;
+  file_size?: number;
+  content: string;
+  metadata?: any;
+  created_at: string;
+  updated_at: string;
+}

@@ -64,14 +64,14 @@ const FlowNode: React.FC<FlowNodeProps> = ({ node, isSelected, onSelect, onMove,
       <div className="border-t border-app-border p-2 flex items-center justify-center">
         <button
           onClick={() => onConfigure(node.id)}
-          className="text-xs font-semibold text-primary hover:text-primary-hover mr-5"
+          className="text-xs font-semibold text-primary hover:text-primary-hover"
         >
           Configure
         </button>
 
         {node.type.toLowerCase().includes('agent') && onTest && (
           <>
-            <div className="h-4 w-px bg-gray-300 mx-1" /> {/* Vertical separator */}
+            <div className="h-4 w-px bg-gray-300 mx-1 ml-6" /> {/* Vertical separator */}
             <button
               onClick={() => onTest(node.id)}
               className="text-xs font-semibold text-primary hover:text-primary-hover ml-6"
