@@ -7,11 +7,13 @@ import type { KnowledgeBase } from '../lib/supabase';
 interface KnowledgeBaseConfigProps {
   nodeId: string;
   onConfigChange?: (config: any) => void;
+  onSaveRequired?: (saveFunction: () => Promise<void>) => void;
 }
 
 const KnowledgeBaseConfig: React.FC<KnowledgeBaseConfigProps> = ({
   nodeId,
-  onConfigChange
+  onConfigChange,
+  onSaveRequired
 }) => {
   const [documents, setDocuments] = useState<KnowledgeBase[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -23,32 +25,43 @@ const KnowledgeBaseConfig: React.FC<KnowledgeBaseConfigProps> = ({
   const [sourceType, setSourceType] = useState<'file' | 'url'>('file');
   const [sourceUrl, setSourceUrl] = useState('');
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
+  const [pendingDocumentId, setPendingDocumentId] = useState<string | null>(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // Load existing documents for this node
-  useEffect(() => {
-    const loadDocuments = async () => {
-      try {
-        setIsLoading(true);
-        // Get all documents and filter by nodeId in metadata
-        const allDocs = await knowledgeBaseService.getAll();
-        const nodeDocs = allDocs.filter(doc =>
-          doc.metadata &&
-          typeof doc.metadata === 'object' &&
-          doc.metadata.nodeId === nodeId
-        );
-        setDocuments(nodeDocs);
+  const loadDocuments = async () => {
+    try {
+      setIsLoading(true);
+      // Get all documents - show all available sources, not just the one connected to this node
+      const allDocs = await knowledgeBaseService.getAll();
+      setDocuments(allDocs);
 
-        // Auto-select the first document if none is selected
-        if (nodeDocs.length > 0 && !selectedDocumentId) {
-          setSelectedDocumentId(nodeDocs[0].id);
-        }
-      } catch (error) {
-        console.error('Error loading knowledge base documents:', error);
-      } finally {
-        setIsLoading(false);
+      // Find the document currently connected to this node
+      const currentNodeDoc = allDocs.find(doc =>
+        doc.metadata &&
+        typeof doc.metadata === 'object' &&
+        doc.metadata.nodeId === nodeId
+      );
+
+      // Auto-select the currently connected document, or the first available if none connected
+      if (currentNodeDoc) {
+        setSelectedDocumentId(currentNodeDoc.id);
+        setPendingDocumentId(currentNodeDoc.id); // Set pending to current
+      } else if (allDocs.length > 0 && !selectedDocumentId) {
+        setSelectedDocumentId(allDocs[0].id);
+        setPendingDocumentId(allDocs[0].id); // Set pending to first available
       }
-    };
 
+      // Reset unsaved changes flag when loading
+      setHasUnsavedChanges(false);
+    } catch (error) {
+      console.error('Error loading knowledge base documents:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
     loadDocuments();
   }, [nodeId]);
 
@@ -130,6 +143,8 @@ const KnowledgeBaseConfig: React.FC<KnowledgeBaseConfigProps> = ({
       // Update documents list and select the new document
       setDocuments(prev => [newDocument, ...prev]);
       setSelectedDocumentId(newDocument.id);
+      setPendingDocumentId(newDocument.id);
+      setHasUnsavedChanges(false); // New document is already connected
 
       // Reset form
       setSelectedFile(null);
@@ -151,6 +166,75 @@ const KnowledgeBaseConfig: React.FC<KnowledgeBaseConfigProps> = ({
       setIsUploading(false);
     }
   };
+
+  const handleDocumentSelection = (documentId: string) => {
+    // Just update the pending selection, don't save immediately
+    setPendingDocumentId(documentId);
+    setSelectedDocumentId(documentId);
+
+    // Check if this is different from the currently connected document
+    const currentlyConnected = documents.find(doc =>
+      doc.metadata &&
+      typeof doc.metadata === 'object' &&
+      doc.metadata.nodeId === nodeId
+    );
+
+    const hasChanges = !currentlyConnected || currentlyConnected.id !== documentId;
+    setHasUnsavedChanges(hasChanges);
+  };
+
+  const saveDocumentConnection = async () => {
+    if (!pendingDocumentId || !hasUnsavedChanges) {
+      return;
+    }
+
+    try {
+      // First, disconnect any currently connected document from this node
+      const currentlyConnected = documents.find(doc =>
+        doc.metadata &&
+        typeof doc.metadata === 'object' &&
+        doc.metadata.nodeId === nodeId
+      );
+
+      if (currentlyConnected && currentlyConnected.id !== pendingDocumentId) {
+        // Remove nodeId from the currently connected document
+        const updatedMetadata = { ...currentlyConnected.metadata };
+        delete updatedMetadata.nodeId;
+
+        await knowledgeBaseService.update(currentlyConnected.id, {
+          metadata: updatedMetadata
+        });
+      }
+
+      // Connect the selected document to this node
+      const selectedDoc = documents.find(doc => doc.id === pendingDocumentId);
+      if (selectedDoc) {
+        const updatedMetadata = {
+          ...(selectedDoc.metadata || {}),
+          nodeId
+        };
+
+        await knowledgeBaseService.update(pendingDocumentId, {
+          metadata: updatedMetadata
+        });
+      }
+
+      // Refresh the documents list to reflect the changes
+      await loadDocuments();
+
+      console.log('Document connection saved successfully');
+    } catch (error) {
+      console.error('Error saving document connection:', error);
+      alert('Failed to save document connection. Please try again.');
+    }
+  };
+
+  // Notify parent when save function is available
+  useEffect(() => {
+    if (onSaveRequired) {
+      onSaveRequired(saveDocumentConnection);
+    }
+  }, [onSaveRequired]);
 
   const handleDelete = async (documentId: string) => {
     if (!confirm('Are you sure you want to delete this document?')) {
@@ -210,17 +294,65 @@ const KnowledgeBaseConfig: React.FC<KnowledgeBaseConfigProps> = ({
 
       {/* Current Selected Document */}
       {selectedDocument && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+        <div className={`border rounded-lg p-3 ${
+          selectedDocument.metadata?.nodeId === nodeId && !hasUnsavedChanges
+            ? 'bg-green-50 border-green-200'
+            : hasUnsavedChanges
+            ? 'bg-yellow-50 border-yellow-200'
+            : 'bg-blue-50 border-blue-200'
+        }`}>
           <div className="flex items-center gap-2 mb-2">
-            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-            <h5 className="font-medium text-blue-900">Currently Selected Source</h5>
+            <div className={`w-2 h-2 rounded-full ${
+              selectedDocument.metadata?.nodeId === nodeId && !hasUnsavedChanges
+                ? 'bg-green-500'
+                : hasUnsavedChanges
+                ? 'bg-yellow-500'
+                : 'bg-blue-500'
+            }`}></div>
+            <h5 className={`font-medium ${
+              selectedDocument.metadata?.nodeId === nodeId && !hasUnsavedChanges
+                ? 'text-green-900'
+                : hasUnsavedChanges
+                ? 'text-yellow-900'
+                : 'text-blue-900'
+            }`}>
+              {selectedDocument.metadata?.nodeId === nodeId && !hasUnsavedChanges
+                ? 'Connected Source'
+                : hasUnsavedChanges
+                ? 'Pending Connection (Click Save to Apply)'
+                : 'Selected Source'}
+            </h5>
           </div>
           <div className="flex items-center gap-3">
-            <FileText className="w-4 h-4 text-blue-600 flex-shrink-0" />
+            <FileText className={`w-4 h-4 flex-shrink-0 ${
+              selectedDocument.metadata?.nodeId === nodeId && !hasUnsavedChanges
+                ? 'text-green-600'
+                : hasUnsavedChanges
+                ? 'text-yellow-600'
+                : 'text-blue-600'
+            }`} />
             <div className="flex-1 min-w-0">
-              <p className="font-medium text-blue-900 truncate">{selectedDocument.name}</p>
-              <div className="flex items-center gap-3 text-xs text-blue-700 mt-1">
-                <span className="px-2 py-0.5 bg-blue-100 rounded text-xs font-medium">
+              <p className={`font-medium truncate ${
+                selectedDocument.metadata?.nodeId === nodeId && !hasUnsavedChanges
+                  ? 'text-green-900'
+                  : hasUnsavedChanges
+                  ? 'text-yellow-900'
+                  : 'text-blue-900'
+              }`}>{selectedDocument.name}</p>
+              <div className={`flex items-center gap-3 text-xs mt-1 ${
+                selectedDocument.metadata?.nodeId === nodeId && !hasUnsavedChanges
+                  ? 'text-green-700'
+                  : hasUnsavedChanges
+                  ? 'text-yellow-700'
+                  : 'text-blue-700'
+              }`}>
+                <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                  selectedDocument.metadata?.nodeId === nodeId && !hasUnsavedChanges
+                    ? 'bg-green-100 text-green-800'
+                    : hasUnsavedChanges
+                    ? 'bg-yellow-100 text-yellow-800'
+                    : 'bg-blue-100 text-blue-800'
+                }`}>
                   {selectedDocument.source_type === 'url' ? 'URL' : 'File'}
                 </span>
                 {selectedDocument.source_type === 'file' ? (
@@ -401,7 +533,7 @@ const KnowledgeBaseConfig: React.FC<KnowledgeBaseConfigProps> = ({
                   ? 'border-blue-300 bg-blue-50 shadow-sm'
                   : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
               }`}
-              onClick={() => setSelectedDocumentId(doc.id)}
+              onClick={() => handleDocumentSelection(doc.id)}
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1 min-w-0">
@@ -411,8 +543,28 @@ const KnowledgeBaseConfig: React.FC<KnowledgeBaseConfigProps> = ({
                       selectedDocumentId === doc.id ? 'bg-blue-500' : 'bg-gray-300'
                     }`}></div>
                     <span className="text-xs font-medium text-gray-500">
-                      {selectedDocumentId === doc.id ? 'Selected' : 'Click to select'}
+                      {selectedDocumentId === doc.id ? 'Selected for this node' : 'Click to select'}
                     </span>
+                    {doc.metadata?.nodeId && doc.metadata.nodeId !== nodeId && (
+                      <span className="px-2 py-0.5 bg-yellow-100 text-yellow-800 rounded text-xs font-medium">
+                        Used by another node
+                      </span>
+                    )}
+                    {doc.metadata?.nodeId === nodeId && (
+                      <span className="px-2 py-0.5 bg-green-100 text-green-800 rounded text-xs font-medium">
+                        {pendingDocumentId === doc.id && hasUnsavedChanges ? 'Currently Connected' : 'Connected to this node'}
+                      </span>
+                    )}
+                    {!doc.metadata?.nodeId && (
+                      <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs font-medium">
+                        Available
+                      </span>
+                    )}
+                    {pendingDocumentId === doc.id && hasUnsavedChanges && doc.metadata?.nodeId !== nodeId && (
+                      <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-xs font-medium">
+                        Pending Connection
+                      </span>
+                    )}
                   </div>
                   {/* Title row with icon */}
                   <div className="flex items-center gap-2 mb-1">
@@ -464,6 +616,18 @@ const KnowledgeBaseConfig: React.FC<KnowledgeBaseConfigProps> = ({
         </div>
         )}
       </div>
+
+      {/* Unsaved Changes Indicator */}
+      {hasUnsavedChanges && (
+        <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+            <span className="text-sm font-medium text-yellow-800">
+              You have unsaved changes to the knowledge base source. Click "Save Configuration" below to apply changes.
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -6,6 +6,7 @@ import type { FlowNodeData } from './FlowNode';
 import type { Dataset, Agent } from '../lib/supabase';
 import KnowledgeBaseConfig from './KnowledgeBaseConfig';
 import AgentKnowledgeBaseConfig from './AgentKnowledgeBaseConfig';
+import { nodeConfigService } from '../services/api';
 
 interface ConfigurationPanelProps {
   selectedNode: FlowNodeData | null;
@@ -36,6 +37,8 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [panelWidth, setPanelWidth] = useState(initialWidth);
   const [isResizing, setIsResizing] = useState(false);
+  const [knowledgeBaseSaveFunction, setKnowledgeBaseSaveFunction] = useState<(() => Promise<void>) | null>(null);
+  const [isLoadingConfig, setIsLoadingConfig] = useState(false);
 
   // State for agent configuration fields
   const [serpApiKey, setSerpApiKey] = useState('');
@@ -68,57 +71,127 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
     document.addEventListener('mouseup', handleMouseUp);
   }, [minWidth, maxWidth]);
 
-  // Load existing configuration when nodeConfig changes
-  useEffect(() => {
-    if (nodeConfig) {
-      // Check if it's a direct node configuration object with search
-      if (nodeConfig.search) {
-        setSerpApiKey(nodeConfig.search.serpApiKey || '');
-        setGeminiApiKey(nodeConfig.search.geminiApiKey || '');
-        setSearchScope(nodeConfig.search.searchScope || 'General Web Search');
-        setMaxResults(nodeConfig.search.maxResults?.toString() || '10');
-        setResultProcessing(nodeConfig.search.resultProcessing || 'Summarize with Gemini');
-        setCustomInstructions(nodeConfig.search.customInstructions || '');
-        setFilterCriteria(nodeConfig.search.filterCriteria || '');
-        setSystemPrompt(nodeConfig.systemPrompt || '');
-        setLimitations(nodeConfig.limitations || '');
-      }
-      // Check if it's an Agent object with configuration
-      else if (nodeConfig.configuration && nodeConfig.configuration.search) {
-        const config = nodeConfig.configuration;
-        setSerpApiKey(config.search.serpApiKey || '');
-        setGeminiApiKey(config.search.geminiApiKey || '');
-        setSearchScope(config.search.searchScope || 'General Web Search');
-        setMaxResults(config.search.maxResults?.toString() || '10');
-        setResultProcessing(config.search.resultProcessing || 'Summarize with Gemini');
-        setCustomInstructions(config.search.customInstructions || '');
-        setFilterCriteria(config.search.filterCriteria || '');
-        setSystemPrompt(config.systemPrompt || '');
-        setLimitations(config.limitations || '');
-      }
-      // If it's just system prompt and limitations
-      else if (nodeConfig.systemPrompt !== undefined || nodeConfig.limitations !== undefined) {
-        setSystemPrompt(nodeConfig.systemPrompt || '');
-        setLimitations(nodeConfig.limitations || '');
-      }
-    } else {
-      // Reset form for new configurations
-      setSerpApiKey('');
-      setGeminiApiKey('');
-      setSearchScope('General Web Search');
-      setMaxResults('10');
-      setResultProcessing('Summarize with Gemini');
-      setCustomInstructions('');
-      setFilterCriteria('');
-      setSystemPrompt('');
-      setLimitations('');
-    }
-  }, [nodeConfig, selectedNode]);
+  // Function to fetch configuration directly from database
+  const fetchConfigurationFromDB = async (nodeId: string) => {
+    try {
+      setIsLoadingConfig(true);
+      const allConfigs = await nodeConfigService.getAllConfigurations();
+      const nodeConfiguration = allConfigs[nodeId];
 
-  const handleSave = () => {
+      if (nodeConfiguration) {
+        console.log('📥 Fetched configuration from DB:', nodeConfiguration);
+        loadConfigurationIntoForm(nodeConfiguration);
+      } else {
+        console.log('⚠️ No configuration found in DB for node:', nodeId);
+        resetConfigurationForm();
+      }
+    } catch (error) {
+      console.error('❌ Error fetching configuration from DB:', error);
+      resetConfigurationForm();
+    } finally {
+      setIsLoadingConfig(false);
+    }
+  };
+
+  // Function to load configuration into form fields
+  const loadConfigurationIntoForm = (config: any) => {
+    if (!config) {
+      resetConfigurationForm();
+      return;
+    }
+
+    // Check if it's a direct node configuration object with search
+    if (config.search) {
+      setSerpApiKey(config.search.serpApiKey || '');
+      setGeminiApiKey(config.search.geminiApiKey || '');
+      setSearchScope(config.search.searchScope || 'General Web Search');
+      setMaxResults(config.search.maxResults?.toString() || '10');
+      setResultProcessing(config.search.resultProcessing || 'Summarize with Gemini');
+      setCustomInstructions(config.search.customInstructions || '');
+      setFilterCriteria(config.search.filterCriteria || '');
+      setSystemPrompt(config.systemPrompt || '');
+      setLimitations(config.limitations || '');
+    }
+    // Check if it's the new agent structure with type and agent properties
+    else if (config.type === 'agent' && config.agent && config.agent.search) {
+      const agentConfig = config.agent;
+      setSerpApiKey(agentConfig.search.serpApiKey || '');
+      setGeminiApiKey(agentConfig.search.geminiApiKey || '');
+      setSearchScope(agentConfig.search.searchScope || 'General Web Search');
+      setMaxResults(agentConfig.search.maxResults?.toString() || '10');
+      setResultProcessing(agentConfig.search.resultProcessing || 'Summarize with Gemini');
+      setCustomInstructions(agentConfig.search.customInstructions || '');
+      setFilterCriteria(agentConfig.search.filterCriteria || '');
+      setSystemPrompt(agentConfig.systemPrompt || '');
+      setLimitations(agentConfig.limitations || '');
+    }
+    // Check if it's an Agent object with configuration
+    else if (config.configuration && config.configuration.search) {
+      const agentConfig = config.configuration;
+      setSerpApiKey(agentConfig.search.serpApiKey || '');
+      setGeminiApiKey(agentConfig.search.geminiApiKey || '');
+      setSearchScope(agentConfig.search.searchScope || 'General Web Search');
+      setMaxResults(agentConfig.search.maxResults?.toString() || '10');
+      setResultProcessing(agentConfig.search.resultProcessing || 'Summarize with Gemini');
+      setCustomInstructions(agentConfig.search.customInstructions || '');
+      setFilterCriteria(agentConfig.search.filterCriteria || '');
+      setSystemPrompt(agentConfig.systemPrompt || '');
+      setLimitations(agentConfig.limitations || '');
+    }
+    // If it's just system prompt and limitations
+    else if (config.systemPrompt !== undefined || config.limitations !== undefined) {
+      setSystemPrompt(config.systemPrompt || '');
+      setLimitations(config.limitations || '');
+    }
+    else {
+      resetConfigurationForm();
+    }
+  };
+
+  // Function to reset configuration form
+  const resetConfigurationForm = () => {
+    setSerpApiKey('');
+    setGeminiApiKey('');
+    setSearchScope('General Web Search');
+    setMaxResults('10');
+    setResultProcessing('Summarize with Gemini');
+    setCustomInstructions('');
+    setFilterCriteria('');
+    setSystemPrompt('');
+    setLimitations('');
+  };
+
+  // Fetch configuration from DB when selectedNode changes
+  useEffect(() => {
+    if (selectedNode && selectedNode.title.includes('🤖')) {
+      fetchConfigurationFromDB(selectedNode.id);
+    }
+  }, [selectedNode?.id]);
+
+  // Load existing configuration when nodeConfig changes (fallback)
+  useEffect(() => {
+    // Only use nodeConfig as fallback if we're not loading from DB and it's not an agent node
+    if (nodeConfig && !isLoadingConfig && (!selectedNode || !selectedNode.title.includes('🤖'))) {
+      loadConfigurationIntoForm(nodeConfig);
+    }
+  }, [nodeConfig, selectedNode, isLoadingConfig]);
+
+  const handleSave = async () => {
+    // First, save knowledge base changes if any
+    if (knowledgeBaseSaveFunction) {
+      try {
+        await knowledgeBaseSaveFunction();
+      } catch (error) {
+        console.error('Error saving knowledge base configuration:', error);
+        // Continue with other saves even if KB save fails
+      }
+    }
     if (selectedNode && selectedNode.title.includes('🤖')) {
       // This is an agent node - save agent configuration
-      const updatedConfig = {
+      // Preserve existing configuration structure if it exists
+      const existingConfig = nodeConfig || {};
+      
+      const agentConfig = {
         preset: 'search',
         search: {
           serpApiKey,
@@ -139,7 +212,26 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
         limitations,
         updatedAt: new Date().toISOString()
       };
-      
+
+      // Create updated config by merging with existing configuration
+      let updatedConfig;
+      if (existingConfig.type === 'agent' && existingConfig.agent) {
+        // Merge with existing agent config to preserve any additional fields
+        updatedConfig = {
+          ...existingConfig,
+          agent: {
+            ...existingConfig.agent,
+            ...agentConfig
+          }
+        };
+      } else {
+        // Use new structure if no existing config or different structure
+        updatedConfig = {
+          type: 'agent',
+          agent: agentConfig
+        };
+      }
+
       onConfigChange(updatedConfig);
     }
     onSave();
@@ -155,7 +247,7 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
   // Find connected knowledge base nodes for agent nodes
   const connectedKnowledgeBaseNodes = isAgentNode ?
     connections
-      .filter(([from, to]) => to === selectedNode.id)
+      .filter(([, to]) => to === selectedNode.id)
       .map(([from]) => from)
       .filter(nodeId => {
         const node = nodes.find(n => n.id === nodeId);
@@ -244,7 +336,15 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
               {/* Agent Configuration */}
               {isAgentNode && (
                 <>
-                  <div>
+                  {isLoadingConfig && (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="flex items-center gap-3">
+                        <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                        <span className="text-sm text-gray-600">Loading configuration...</span>
+                      </div>
+                    </div>
+                  )}
+                  <div className={isLoadingConfig ? 'opacity-50 pointer-events-none' : ''}>
                     <h4 className="font-medium text-gray-900 mb-4">Search Configuration</h4>
                     <div className="space-y-4">
                       <div className="grid grid-cols-1 gap-4">
@@ -349,15 +449,15 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
                         rows={3}
                       />
                     </div>
-                  </div>
 
-                  {/* Connected Knowledge Bases */}
-                  <AgentKnowledgeBaseConfig
-                    agentId={selectedNode.id}
-                    connectedKnowledgeBaseNodes={connectedKnowledgeBaseNodes}
-                    connections={connections}
-                    onConfigChange={onConfigChange}
-                  />
+                    {/* Connected Knowledge Bases */}
+                    <AgentKnowledgeBaseConfig
+                      agentId={selectedNode.id}
+                      connectedKnowledgeBaseNodes={connectedKnowledgeBaseNodes}
+                      connections={connections}
+                      onConfigChange={onConfigChange}
+                    />
+                  </div>
                 </>
               )}
 
@@ -381,6 +481,7 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
                 <KnowledgeBaseConfig
                   nodeId={selectedNode.id}
                   onConfigChange={onConfigChange}
+                  onSaveRequired={setKnowledgeBaseSaveFunction}
                 />
               )}
 

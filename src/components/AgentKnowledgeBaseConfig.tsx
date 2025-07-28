@@ -91,11 +91,31 @@ const AgentKnowledgeBaseConfig: React.FC<AgentKnowledgeBaseConfigProps> = ({
         connectedKnowledgeBaseNodes.includes(kb.metadata.nodeId)
       );
 
+      // Deduplicate by nodeId - only keep the most recent entry for each node
+      const uniqueConnectedKBs = connectedKBs.reduce((acc, kb) => {
+        const nodeId = kb.metadata?.nodeId;
+        if (!nodeId) return acc;
+
+        const existing = acc.find(existing => existing.metadata?.nodeId === nodeId);
+        if (!existing) {
+          acc.push(kb);
+        } else {
+          // Keep the more recent one (or the one with more recent updated_at)
+          const existingDate = new Date(existing.updated_at || existing.created_at);
+          const currentDate = new Date(kb.updated_at || kb.created_at);
+          if (currentDate > existingDate) {
+            const index = acc.findIndex(item => item.metadata?.nodeId === nodeId);
+            acc[index] = kb;
+          }
+        }
+        return acc;
+      }, [] as typeof connectedKBs);
+
       // Only update state if the component is still mounted and we have the latest data
-      setConnectedKnowledgeBases(connectedKBs);
+      setConnectedKnowledgeBases(uniqueConnectedKBs);
 
       if (onConfigChange) {
-        onConfigChange({ connectedKnowledgeBases: connectedKBs.length });
+        onConfigChange({ connectedKnowledgeBases: uniqueConnectedKBs.length });
       }
     } catch (error) {
       console.error('Error loading connected knowledge bases:', error);

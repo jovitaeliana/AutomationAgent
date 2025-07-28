@@ -593,25 +593,55 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
   const handleConfigChange = async (newConfig: any) => {
     if (configuringNodeId && newConfig) {
       try {
-        // Save to database immediately
+        // Get existing configuration to merge with
+        const existingConfig = allNodeConfigs[configuringNodeId] || nodeAgents[configuringNodeId] || {};
+        
+        // Merge configurations instead of overwriting
+        let mergedConfig;
+        if ('questions' in newConfig) {
+          // Dataset configuration
+          mergedConfig = { ...existingConfig, ...newConfig };
+        } else if ('agent' in newConfig || newConfig.type === 'agent') {
+          // Agent configuration - deep merge to preserve API keys and other settings
+          if (existingConfig.type === 'agent' && existingConfig.agent) {
+            mergedConfig = {
+              ...existingConfig,
+              agent: {
+                ...existingConfig.agent,
+                ...newConfig.agent,
+                search: {
+                  ...existingConfig.agent.search,
+                  ...newConfig.agent?.search
+                }
+              }
+            };
+          } else {
+            mergedConfig = newConfig;
+          }
+        } else {
+          // Other configuration types
+          mergedConfig = { ...existingConfig, ...newConfig };
+        }
+        
+        // Save merged configuration to database
         const selectedNode = nodes.find(n => n.id === configuringNodeId);
         await nodeConfigService.saveConfiguration(
           configuringNodeId, 
-          newConfig, 
+          mergedConfig, 
           selectedNode?.type || 'unknown'
         );
         
-        // Update local state
-        if ('questions' in newConfig) {
-          setNodeDatasets(prev => ({ ...prev, [configuringNodeId]: newConfig }));
-        } else if ('agent' in newConfig || newConfig.type === 'agent') {
-          setNodeAgents(prev => ({ ...prev, [configuringNodeId]: newConfig.agent || newConfig }));
-          setAllNodeConfigs(prev => ({ ...prev, [configuringNodeId]: newConfig }));
+        // Update local state with merged configuration
+        if ('questions' in mergedConfig) {
+          setNodeDatasets(prev => ({ ...prev, [configuringNodeId]: mergedConfig }));
+        } else if ('agent' in mergedConfig || mergedConfig.type === 'agent') {
+          setNodeAgents(prev => ({ ...prev, [configuringNodeId]: mergedConfig.agent || mergedConfig }));
+          setAllNodeConfigs(prev => ({ ...prev, [configuringNodeId]: mergedConfig }));
         } else {
-          setAllNodeConfigs(prev => ({ ...prev, [configuringNodeId]: newConfig }));
+          setAllNodeConfigs(prev => ({ ...prev, [configuringNodeId]: mergedConfig }));
         }
         
-        console.log('✅ Configuration auto-saved:', { nodeId: configuringNodeId, config: newConfig });
+        console.log('✅ Configuration auto-saved with merge:', { nodeId: configuringNodeId, config: mergedConfig });
       } catch (error) {
         console.error('Error saving configuration:', error);
       }
@@ -779,8 +809,8 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
               selectedNode={nodes.find(n => n.id === configuringNodeId) || null}
               nodeConfig={configuringNodeId ? (
                 nodeDatasets[configuringNodeId] ||
-                nodeAgents[configuringNodeId] ||
-                allNodeConfigs[configuringNodeId]
+                allNodeConfigs[configuringNodeId] ||
+                nodeAgents[configuringNodeId]
               ) : null}
               connections={connections}
               nodes={nodes}
