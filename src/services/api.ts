@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase';
-import type { Dataset, FlowNode, FlowConnection, Preset, AvailableNode, Automation, RagModel, Agent, KnowledgeBase } from '../lib/supabase';
+import type { Dataset, FlowNode, FlowConnection, Preset, AvailableNode, Automation, RagModel, Agent, KnowledgeBase, AgentKnowledgeBase } from '../lib/supabase';
 
 export const datasetService = {
   async getAll(): Promise<Dataset[]> {
@@ -603,6 +603,55 @@ export const knowledgeBaseService = {
       .from('knowledge_bases')
       .delete()
       .eq('id', id);
+
+    if (error) throw error;
+  }
+};
+
+export const agentKnowledgeBaseService = {
+  async getByAgentId(agentId: string): Promise<(AgentKnowledgeBase & { knowledge_base: KnowledgeBase })[]> {
+    const { data, error } = await supabase
+      .from('agent_knowledge_bases')
+      .select(`
+        *,
+        knowledge_base:knowledge_bases(*)
+      `)
+      .eq('agent_id', agentId);
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  async connect(agentId: string, knowledgeBaseId: string): Promise<AgentKnowledgeBase> {
+    const { data, error } = await supabase
+      .from('agent_knowledge_bases')
+      .insert([{
+        agent_id: agentId,
+        knowledge_base_id: knowledgeBaseId,
+        created_at: new Date().toISOString()
+      }])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async disconnect(agentId: string, knowledgeBaseId: string): Promise<void> {
+    const { error } = await supabase
+      .from('agent_knowledge_bases')
+      .delete()
+      .eq('agent_id', agentId)
+      .eq('knowledge_base_id', knowledgeBaseId);
+
+    if (error) throw error;
+  },
+
+  async disconnectAll(agentId: string): Promise<void> {
+    const { error } = await supabase
+      .from('agent_knowledge_bases')
+      .delete()
+      .eq('agent_id', agentId);
 
     if (error) throw error;
   }

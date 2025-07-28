@@ -95,3 +95,10 @@ export interface KnowledgeBase {
   created_at: string;
   updated_at: string;
 }
+
+export interface AgentKnowledgeBase {
+  id: string;
+  agent_id: string;
+  knowledge_base_id: string;
+  created_at: string;
+}

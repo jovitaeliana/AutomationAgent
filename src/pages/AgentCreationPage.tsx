@@ -12,7 +12,7 @@ import AgentSelectionModal from '../components/AgentSelectionModal';
 import DatasetTestingPanel from '../components/DatasetTestingPanel';
 import KnowledgeBaseUploadModal from '../components/KnowledgeBaseUploadModal';
 import GeminiChatPanel from '../components/GeminiChatPanel';
-import { flowService, availableNodesService, nodeConfigService, knowledgeBaseService } from '../services/api';
+import { flowService, availableNodesService, nodeConfigService, knowledgeBaseService, agentKnowledgeBaseService } from '../services/api';
 import type { Dataset, Agent } from '../lib/supabase';
 
 // Define the page names type
@@ -457,16 +457,78 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
     }
   };
 
+  // Handle knowledge base existing source selection
+  const handleKnowledgeBaseSelect = async (source: any) => {
+    if (pendingKnowledgeBaseNodeData) {
+      try {
+        // Create the node
+        const nodeId = `node-${Date.now()}`;
+        const newNode: FlowNodeData = {
+          id: nodeId,
+          title: `${pendingKnowledgeBaseNodeData.item.icon} ${pendingKnowledgeBaseNodeData.item.title}`,
+          type: pendingKnowledgeBaseNodeData.item.description,
+          position: pendingKnowledgeBaseNodeData.position,
+        };
+
+        // Update the existing source to include this nodeId in metadata
+        const updatedMetadata = {
+          ...(source.metadata || {}),
+          nodeId
+        };
+
+        await knowledgeBaseService.update(source.id, {
+          metadata: updatedMetadata
+        });
+
+        // Save node to database
+        await createNode(newNode);
+
+        // Update local state
+        setNodes(prev => [...prev, newNode]);
+        setPendingKnowledgeBaseNodeData(null);
+        setIsKnowledgeBaseModalOpen(false);
+
+        console.log('Knowledge base source connected to node');
+      } catch (error) {
+        console.error('Error connecting knowledge base source:', error);
+        alert('Failed to connect knowledge base source. Please try again.');
+      }
+    }
+  };
+
   // Enhanced delete node with loading indication
   const deleteNode = async (nodeId: string) => {
     // Start loading state
     setDeletingNodeId(nodeId);
     
     try {
+      // Check if this is a knowledge base node and clean up associated knowledge bases
+      const nodeToDelete = nodes.find(n => n.id === nodeId);
+      if (nodeToDelete?.title.includes('🧠')) {
+        // Find and delete knowledge bases associated with this node
+        try {
+          const allKnowledgeBases = await knowledgeBaseService.getAll();
+          const associatedKBs = allKnowledgeBases.filter(kb =>
+            kb.metadata &&
+            typeof kb.metadata === 'object' &&
+            kb.metadata.nodeId === nodeId
+          );
+
+          // Delete associated knowledge bases
+          for (const kb of associatedKBs) {
+            await knowledgeBaseService.delete(kb.id);
+          }
+
+          console.log(`Deleted ${associatedKBs.length} knowledge bases associated with node ${nodeId}`);
+        } catch (error) {
+          console.error('Error cleaning up knowledge bases:', error);
+        }
+      }
+
       // Perform deletion operations
       await flowService.deleteNode(nodeId);
       await nodeConfigService.deleteByNodeId(nodeId);
-      
+
       console.log('Node and configuration deleted from Supabase');
       
       // Update local state after successful deletion
@@ -692,7 +754,7 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
             
             {/* Full-Screen Delete Loading Overlay */}
             {deletingNodeId && (
-              <div className="absolute inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
+              <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-50">
                 <div className="bg-white rounded-lg p-8 shadow-2xl flex flex-col items-center space-y-4 min-w-[300px]">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-primary"></div>
                   <div className="text-center">
@@ -711,10 +773,12 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
             <ConfigurationPanel
               selectedNode={nodes.find(n => n.id === configuringNodeId) || null}
               nodeConfig={configuringNodeId ? (
-                nodeDatasets[configuringNodeId] || 
-                nodeAgents[configuringNodeId] || 
+                nodeDatasets[configuringNodeId] ||
+                nodeAgents[configuringNodeId] ||
                 allNodeConfigs[configuringNodeId]
               ) : null}
+              connections={connections}
+              nodes={nodes}
               onConfigChange={handleConfigChange}
               onClose={() => setConfiguringNodeId(null)}
               onSave={async () => {
@@ -867,6 +931,7 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
           setPendingKnowledgeBaseNodeData(null);
         }}
         onUpload={handleKnowledgeBaseUpload}
+        onSelectExisting={handleKnowledgeBaseSelect}
         isUploading={isKnowledgeBaseUploading}
       />
     </div>

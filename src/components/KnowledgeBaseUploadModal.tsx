@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
-import { X } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, FileText, ExternalLink } from 'lucide-react';
 import FileUploadButton from './FileUploadButton';
+import { knowledgeBaseService } from '../services/api';
+import type { KnowledgeBase } from '../lib/supabase';
 
 interface KnowledgeBaseUploadModalProps {
   isOpen: boolean;
@@ -12,6 +14,7 @@ interface KnowledgeBaseUploadModalProps {
     name: string;
     description?: string;
   }) => void;
+  onSelectExisting?: (source: KnowledgeBase) => void;
   isUploading?: boolean;
 }
 
@@ -19,6 +22,7 @@ const KnowledgeBaseUploadModal: React.FC<KnowledgeBaseUploadModalProps> = ({
   isOpen,
   onClose,
   onUpload,
+  onSelectExisting,
   isUploading = false
 }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -26,6 +30,44 @@ const KnowledgeBaseUploadModal: React.FC<KnowledgeBaseUploadModalProps> = ({
   const [description, setDescription] = useState('');
   const [sourceType, setSourceType] = useState<'file' | 'url'>('file');
   const [sourceUrl, setSourceUrl] = useState('');
+  const [existingSources, setExistingSources] = useState<KnowledgeBase[]>([]);
+  const [isLoadingSources, setIsLoadingSources] = useState(false);
+  const [activeTab, setActiveTab] = useState<'upload' | 'existing'>('upload');
+
+  // Load existing sources when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      loadExistingSources();
+    }
+  }, [isOpen]);
+
+  const loadExistingSources = async () => {
+    try {
+      setIsLoadingSources(true);
+      const sources = await knowledgeBaseService.getAll();
+      setExistingSources(sources);
+    } catch (error) {
+      console.error('Error loading existing sources:', error);
+    } finally {
+      setIsLoadingSources(false);
+    }
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
 
   const handleFileSelect = (file: File) => {
     // Validate file type for knowledge base (JSON, CSV, TXT)
@@ -87,6 +129,7 @@ const KnowledgeBaseUploadModal: React.FC<KnowledgeBaseUploadModalProps> = ({
       setDescription('');
       setSourceUrl('');
       setSourceType('file');
+      setActiveTab('upload');
       onClose();
     }
   };
@@ -95,9 +138,9 @@ const KnowledgeBaseUploadModal: React.FC<KnowledgeBaseUploadModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-app-bg-content rounded-xl border border-app-border p-6 w-full max-w-md mx-4">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-app-text">Upload Knowledge Base Source</h2>
+      <div className="bg-app-bg-content rounded-xl border border-app-border p-6 w-full max-w-2xl mx-4 max-h-[80vh] overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-app-text">Knowledge Base Source</h2>
           <button
             onClick={handleClose}
             disabled={isUploading}
@@ -107,7 +150,33 @@ const KnowledgeBaseUploadModal: React.FC<KnowledgeBaseUploadModalProps> = ({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Tabs */}
+        <div className="flex border-b border-app-border mb-4">
+          <button
+            onClick={() => setActiveTab('upload')}
+            className={`px-4 py-2 font-medium text-sm transition-colors ${
+              activeTab === 'upload'
+                ? 'text-primary border-b-2 border-primary'
+                : 'text-app-text-subtle hover:text-app-text'
+            }`}
+          >
+            Upload New
+          </button>
+          <button
+            onClick={() => setActiveTab('existing')}
+            className={`px-4 py-2 font-medium text-sm transition-colors ${
+              activeTab === 'existing'
+                ? 'text-primary border-b-2 border-primary'
+                : 'text-app-text-subtle hover:text-app-text'
+            }`}
+          >
+            Select Existing ({existingSources.length})
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto">
+          {activeTab === 'upload' ? (
+            <form onSubmit={handleSubmit} className="space-y-4">
           {/* Source Type Selection */}
           <div>
             <label className="block text-sm font-medium text-app-text mb-2">
@@ -231,6 +300,72 @@ const KnowledgeBaseUploadModal: React.FC<KnowledgeBaseUploadModalProps> = ({
             </button>
           </div>
         </form>
+          ) : (
+            /* Existing Sources Tab */
+            <div className="space-y-4">
+              <p className="text-sm text-app-text-subtle">
+                Select from previously uploaded knowledge base sources:
+              </p>
+
+              {isLoadingSources ? (
+                <div className="text-center py-8 text-app-text-subtle">
+                  Loading sources...
+                </div>
+              ) : existingSources.length === 0 ? (
+                <div className="text-center py-8 text-app-text-subtle">
+                  No existing sources found. Upload your first source to get started.
+                </div>
+              ) : (
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {existingSources.map((source) => (
+                    <div
+                      key={source.id}
+                      className="border border-app-border rounded-lg p-3 hover:bg-app-bg-highlight cursor-pointer transition-colors"
+                      onClick={() => {
+                        if (onSelectExisting) {
+                          onSelectExisting(source);
+                          handleClose();
+                        }
+                      }}
+                    >
+                      <div className="flex items-center gap-3">
+                        {source.source_type === 'url' ? (
+                          <ExternalLink className="w-5 h-5 text-app-text-subtle flex-shrink-0" />
+                        ) : (
+                          <FileText className="w-5 h-5 text-app-text-subtle flex-shrink-0" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h6 className="font-medium text-app-text truncate">{source.name}</h6>
+                            <span className="px-2 py-0.5 bg-app-bg-highlight rounded text-xs font-medium flex-shrink-0">
+                              {source.source_type === 'url' ? 'URL' : 'File'}
+                            </span>
+                          </div>
+                          {source.description && (
+                            <p className="text-sm text-app-text-subtle mb-2 line-clamp-2">{source.description}</p>
+                          )}
+                          <div className="flex items-center gap-3 text-xs text-app-text-subtle">
+                            {source.source_type === 'file' ? (
+                              <>
+                                <span className="truncate">{source.file_name || 'Unknown file'}</span>
+                                <span className="flex-shrink-0">{source.file_size ? formatFileSize(source.file_size) : 'N/A'}</span>
+                              </>
+                            ) : (
+                              <span className="truncate" title={source.source_url}>
+                                {source.source_url || 'No URL'}
+                              </span>
+                            )}
+                            <span className="flex-shrink-0">{formatDate(source.created_at)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

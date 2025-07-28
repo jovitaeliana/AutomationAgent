@@ -5,10 +5,13 @@ import { InputField, TextareaField, SelectField } from './FormField';
 import type { FlowNodeData } from './FlowNode';
 import type { Dataset, Agent } from '../lib/supabase';
 import KnowledgeBaseConfig from './KnowledgeBaseConfig';
+import AgentKnowledgeBaseConfig from './AgentKnowledgeBaseConfig';
 
 interface ConfigurationPanelProps {
   selectedNode: FlowNodeData | null;
   nodeConfig: Dataset | Agent | any | null; // Allow any for node configurations
+  connections: [string, string][];
+  nodes: FlowNodeData[];
   onConfigChange: (config: any) => void;
   onClose: () => void;
   onSave: () => void;
@@ -20,6 +23,8 @@ interface ConfigurationPanelProps {
 const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
   selectedNode,
   nodeConfig,
+  connections,
+  nodes,
   onConfigChange,
   onClose,
   onSave,
@@ -108,7 +113,7 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
       setSystemPrompt('');
       setLimitations('');
     }
-  }, [nodeConfig]);
+  }, [nodeConfig, selectedNode]);
 
   const handleSave = () => {
     if (selectedNode && selectedNode.title.includes('🤖')) {
@@ -146,6 +151,16 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
   const isDatasetNode = selectedNode.title.includes('📄') || selectedNode.type.toLowerCase().includes('document');
   const isKnowledgeBaseNode = selectedNode.title.includes('🧠') && selectedNode.title.toLowerCase().includes('knowledge base');
   const hasConfigurableOptions = isAgentNode || isDatasetNode || isKnowledgeBaseNode;
+
+  // Find connected knowledge base nodes for agent nodes
+  const connectedKnowledgeBaseNodes = isAgentNode ?
+    connections
+      .filter(([from, to]) => to === selectedNode.id)
+      .map(([from]) => from)
+      .filter(nodeId => {
+        const node = nodes.find(n => n.id === nodeId);
+        return node?.title.includes('🧠');
+      }) : [];
 
   return (
     <div 
@@ -335,6 +350,13 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
                       />
                     </div>
                   </div>
+
+                  {/* Connected Knowledge Bases */}
+                  <AgentKnowledgeBaseConfig
+                    agentId={selectedNode.id}
+                    connectedKnowledgeBaseNodes={connectedKnowledgeBaseNodes}
+                    onConfigChange={onConfigChange}
+                  />
                 </>
               )}
 
