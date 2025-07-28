@@ -891,12 +891,30 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
                       <DatasetTestingPanel
                         nodeId={testingNodeId}
                         agentConfig={testingNodeId ? (nodeAgents[testingNodeId] || null) : null}
+                        connectedKnowledgeBaseNodes={testingNodeId ?
+                          connections
+                            .filter(([from, to]) => to === testingNodeId)
+                            .map(([from]) => from)
+                            .filter(nodeId => {
+                              const node = nodes.find(n => n.id === nodeId);
+                              return node?.title.includes('🧠');
+                            }) : []
+                        }
                         onBack={() => setTestMode(null)}
                       />
                     ) : (
                       <GeminiChatPanel
                         nodeId={testingNodeId}
                         agentConfig={testingNodeId ? (nodeAgents[testingNodeId] || null) : null}
+                        connectedKnowledgeBaseNodes={testingNodeId ?
+                          connections
+                            .filter(([from, to]) => to === testingNodeId)
+                            .map(([from]) => from)
+                            .filter(nodeId => {
+                              const node = nodes.find(n => n.id === nodeId);
+                              return node?.title.includes('🧠');
+                            }) : []
+                        }
                         onBack={() => setTestMode(null)}
                       />
                     )}

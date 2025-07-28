@@ -656,3 +656,86 @@ export const agentKnowledgeBaseService = {
     if (error) throw error;
   }
 };
+
+// Knowledge Base RAG Service
+export const knowledgeBaseRAGService = {
+  async getRelevantContext(agentId: string, query: string, connectedKnowledgeBaseNodes: string[]): Promise<string> {
+    try {
+      if (connectedKnowledgeBaseNodes.length === 0) {
+        return '';
+      }
+
+      // Get all knowledge bases and filter by connected node IDs
+      const allKnowledgeBases = await knowledgeBaseService.getAll();
+      const connectedKBs = allKnowledgeBases.filter(kb =>
+        kb.metadata &&
+        typeof kb.metadata === 'object' &&
+        connectedKnowledgeBaseNodes.includes(kb.metadata.nodeId)
+      );
+
+      if (connectedKBs.length === 0) {
+        return '';
+      }
+
+      // Simple keyword-based relevance scoring
+      const queryWords = query.toLowerCase().split(/\s+/).filter(word => word.length > 2);
+
+      let relevantContent = '';
+      let totalRelevantSources = 0;
+
+      for (const kb of connectedKBs) {
+        const content = kb.content.toLowerCase();
+        let relevanceScore = 0;
+
+        // Calculate relevance score based on keyword matches
+        for (const word of queryWords) {
+          const matches = (content.match(new RegExp(word, 'g')) || []).length;
+          relevanceScore += matches;
+        }
+
+        // If this knowledge base has relevant content, include it
+        if (relevanceScore > 0) {
+          totalRelevantSources++;
+
+          // Extract relevant sections (simple approach - get paragraphs containing keywords)
+          const paragraphs = kb.content.split(/\n\s*\n/);
+          const relevantParagraphs = paragraphs.filter(paragraph => {
+            const lowerParagraph = paragraph.toLowerCase();
+            return queryWords.some(word => lowerParagraph.includes(word));
+          });
+
+          if (relevantParagraphs.length > 0) {
+            relevantContent += `\n\n--- From ${kb.name} ---\n`;
+            relevantContent += relevantParagraphs.slice(0, 3).join('\n\n'); // Limit to 3 most relevant paragraphs
+          } else {
+            // If no specific paragraphs match, include a portion of the content
+            relevantContent += `\n\n--- From ${kb.name} ---\n`;
+            relevantContent += kb.content.substring(0, 500) + (kb.content.length > 500 ? '...' : '');
+          }
+        }
+      }
+
+      // If we found relevant content, format it nicely
+      if (relevantContent.trim()) {
+        return `\n\n=== KNOWLEDGE BASE CONTEXT ===\nThe following information from your connected knowledge bases may be relevant to this query:\n${relevantContent}\n=== END KNOWLEDGE BASE CONTEXT ===\n`;
+      }
+
+      return '';
+    } catch (error) {
+      console.error('Error retrieving knowledge base context:', error);
+      return '';
+    }
+  },
+
+  // Enhanced version with better semantic matching (for future implementation)
+  async getRelevantContextAdvanced(agentId: string, query: string, connectedKnowledgeBaseNodes: string[]): Promise<string> {
+    // This could be enhanced with:
+    // - Vector embeddings for semantic similarity
+    // - TF-IDF scoring
+    // - Named entity recognition
+    // - More sophisticated text chunking
+
+    // For now, fall back to the basic implementation
+    return this.getRelevantContext(agentId, query, connectedKnowledgeBaseNodes);
+  }
+};

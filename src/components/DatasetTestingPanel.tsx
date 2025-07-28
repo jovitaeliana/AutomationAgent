@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Play, Pause, RotateCcw, CheckCircle, XCircle, Clock } from 'lucide-react';
-import { datasetService } from '../services/api';
+import { datasetService, knowledgeBaseRAGService } from '../services/api';
 import type { Dataset, Agent } from '../lib/supabase';
 
 interface DatasetTestingPanelProps {
   nodeId: string;
   agentConfig: Agent | null;
+  connectedKnowledgeBaseNodes: string[];
   onBack: () => void;
 }
 
@@ -31,10 +32,11 @@ interface Question {
   difficulty?: string;
 }
 
-const DatasetTestingPanel: React.FC<DatasetTestingPanelProps> = ({ 
-  nodeId, 
-  agentConfig, 
-  onBack 
+const DatasetTestingPanel: React.FC<DatasetTestingPanelProps> = ({
+  nodeId,
+  agentConfig,
+  connectedKnowledgeBaseNodes,
+  onBack
 }) => {
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [selectedDataset, setSelectedDataset] = useState<Dataset | null>(null);
@@ -219,6 +221,18 @@ const DatasetTestingPanel: React.FC<DatasetTestingPanelProps> = ({
       const systemPrompt = getSystemPrompt();
       let finalQuestion = question;
 
+      // Get relevant knowledge base context
+      let knowledgeContext = '';
+      try {
+        knowledgeContext = await knowledgeBaseRAGService.getRelevantContext(
+          nodeId,
+          question,
+          connectedKnowledgeBaseNodes
+        );
+      } catch (error) {
+        console.error('Error retrieving knowledge base context:', error);
+      }
+
       // Check if we should perform a search (same logic as chat interface)
       if (shouldPerformSearch(question)) {
         try {
@@ -228,19 +242,24 @@ const DatasetTestingPanel: React.FC<DatasetTestingPanelProps> = ({
           finalQuestion = `User Query: ${question}
 
 Current Search Results:
-${searchResults}
+${searchResults}${knowledgeContext}
 
-Instructions: Based on the current search results above, please provide a helpful and accurate response to the user's question. ${searchConfig?.customInstructions || ''}
+Instructions: Based on the current search results above${knowledgeContext ? ' and the knowledge base context' : ''}, please provide a helpful and accurate response to the user's question. ${searchConfig?.customInstructions || ''}
 
 ${searchConfig?.filterCriteria ? `Filter Criteria: ${searchConfig.filterCriteria}` : ''}
 
-Please provide a comprehensive answer using the current information from the search results.`;
+Please provide a comprehensive answer using the current information from the search results${knowledgeContext ? ' and your knowledge base' : ''}.`;
         } catch (searchError) {
           // If search fails, continue with original message but mention the search failure
-          finalQuestion = `${question}
+          finalQuestion = `${question}${knowledgeContext}
 
-Note: I attempted to search for current information but encountered an error: ${searchError instanceof Error ? searchError.message : 'Search unavailable'}. I'll provide a response based on my general knowledge.`;
+Note: I attempted to search for current information but encountered an error: ${searchError instanceof Error ? searchError.message : 'Search unavailable'}. I'll provide a response based on ${knowledgeContext ? 'your knowledge base and ' : ''}my general knowledge.`;
         }
+      } else if (knowledgeContext) {
+        // If no search is needed but we have knowledge base context, include it
+        finalQuestion = `${question}${knowledgeContext}
+
+Please answer the question using the information from your knowledge base above, combined with your general knowledge.`;
       }
 
       // Build conversation context using proper Gemini API format (same as chat interface)
