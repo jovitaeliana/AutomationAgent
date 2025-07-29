@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Play, Pause, RotateCcw, CheckCircle, XCircle, Clock } from 'lucide-react';
-import { datasetService, knowledgeBaseRAGService } from '../services/api';
+import { datasetService, knowledgeBaseRAGService, weatherService } from '../services/api';
 import type { Dataset, Agent } from '../lib/supabase';
 import { isRagAgent } from '../utils/agentUtils';
 
@@ -99,6 +99,30 @@ const DatasetTestingPanel: React.FC<DatasetTestingPanelProps> = ({
 
   const hasSearchCapability = (): boolean => {
     return !!(getSerpApiKey() && getApiKey());
+  };
+
+  // Helper function to check if this is a weather agent
+  const isWeatherAgent = (): boolean => {
+    if (!agentConfig?.configuration) return false;
+
+    return agentConfig.configuration.preset === 'weather' ||
+           !!agentConfig.configuration.weather;
+  };
+
+  // Helper function to get weather API keys
+  const getWeatherApiKeys = (): { openWeatherApiKey: string | null; geminiApiKey: string | null } => {
+    if (!agentConfig?.configuration?.weather) return { openWeatherApiKey: null, geminiApiKey: null };
+
+    const weatherConfig = agentConfig.configuration.weather;
+    return {
+      openWeatherApiKey: weatherConfig.openWeatherApiKey || null,
+      geminiApiKey: weatherConfig.geminiApiKey || null
+    };
+  };
+
+  const hasWeatherCapability = (): boolean => {
+    const { openWeatherApiKey, geminiApiKey } = getWeatherApiKeys();
+    return !!(openWeatherApiKey && geminiApiKey);
   };
 
   const getSystemPrompt = (): string => {
@@ -215,6 +239,32 @@ const DatasetTestingPanel: React.FC<DatasetTestingPanelProps> = ({
     }
   };
 
+  const performWeatherQuery = async (query: string): Promise<string> => {
+    const { openWeatherApiKey, geminiApiKey } = getWeatherApiKeys();
+    if (!openWeatherApiKey || !geminiApiKey) {
+      throw new Error('Weather API keys not found in agent configuration');
+    }
+
+    try {
+      const weatherConfig = agentConfig?.configuration?.weather;
+      const location = weatherConfig?.location || 'Singapore';
+      const units = weatherConfig?.units || 'Celsius';
+
+      // Get current weather and forecast
+      const [currentWeather, forecast] = await Promise.all([
+        weatherService.getCurrentWeather(openWeatherApiKey, location, units),
+        weatherService.getForecast(openWeatherApiKey, location, units)
+      ]);
+
+      // Format weather data for Gemini processing
+      const formattedWeatherData = weatherService.formatWeatherData(currentWeather, forecast);
+
+      return formattedWeatherData;
+    } catch (error) {
+      throw new Error(`Weather query failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
   const callGeminiAPI = async (question: string, apiKey: string): Promise<string> => {
     try {
       const systemPrompt = getSystemPrompt();
@@ -232,8 +282,38 @@ const DatasetTestingPanel: React.FC<DatasetTestingPanelProps> = ({
         console.error('Error retrieving knowledge base context:', error);
       }
 
+      // Check if this is a weather agent and the query is weather-related
+      if (isWeatherAgent() && hasWeatherCapability() && weatherService.isWeatherQuery(question)) {
+        try {
+          const weatherData = await performWeatherQuery(question);
+          const weatherConfig = agentConfig?.configuration?.weather;
+
+          finalQuestion = `User Query: ${question}
+
+Current Weather Data:
+${weatherData}${knowledgeContext}
+
+Instructions: ${knowledgeContext ? 'PRIORITY: Use the authoritative knowledge base information above as your primary source. If the knowledge base contains relevant information, use it to answer the question regardless of any training limitations. ' : ''}You are a weather assistant. Use the current weather data above to provide a helpful and accurate response to the user's weather query.
+
+IMPORTANT GUIDELINES:
+1. Provide specific weather information based on the current data
+2. Include temperature, conditions, and relevant details
+3. If asked about clothing or activities, make practical recommendations based on the weather
+4. Be conversational and helpful in your response
+5. Include forecast information when relevant to the query
+
+${weatherConfig?.customInstructions || ''}
+
+Answer the user's weather question using the current weather data provided above${knowledgeContext ? ' and any relevant knowledge base information' : ''}.`;
+        } catch (weatherError) {
+          // If weather query fails, continue with original message but mention the weather failure
+          finalQuestion = `${question}${knowledgeContext}
+
+Note: I attempted to get current weather information but encountered an error: ${weatherError instanceof Error ? weatherError.message : 'Weather data unavailable'}. ${knowledgeContext ? 'IMPORTANT: Use the authoritative knowledge base information above to answer the question. The knowledge base overrides any training limitations.' : 'I\'ll provide a response based on my general knowledge.'}`;
+        }
+      }
       // Check if we should perform a search (same logic as chat interface)
-      if (shouldPerformSearch(question)) {
+      else if (shouldPerformSearch(question)) {
         try {
           const searchResults = await performSearch(question);
           const searchConfig = agentConfig?.configuration?.search;

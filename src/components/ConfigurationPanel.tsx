@@ -52,6 +52,14 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
   const [resultProcessing, setResultProcessing] = useState('Summarize with Gemini');
   const [customInstructions, setCustomInstructions] = useState('');
   const [filterCriteria, setFilterCriteria] = useState('');
+
+  // Weather configuration state
+  const [weatherOpenWeatherApiKey, setWeatherOpenWeatherApiKey] = useState('');
+  const [weatherGeminiApiKey, setWeatherGeminiApiKey] = useState('');
+  const [weatherLocation, setWeatherLocation] = useState('Singapore');
+  const [weatherUnits, setWeatherUnits] = useState('Celsius');
+  const [weatherMaxResults, setWeatherMaxResults] = useState('10');
+  const [weatherCustomInstructions, setWeatherCustomInstructions] = useState('');
   const [systemPrompt, setSystemPrompt] = useState('');
   const [limitations, setLimitations] = useState('');
   
@@ -207,6 +215,30 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
       setSystemPrompt(config.agent.configuration.systemPrompt || '');
       setLimitations(config.agent.configuration.limitations || '');
     }
+    // Check if it's a weather configuration
+    else if (config.configuration && config.configuration.weather) {
+      const weatherConfig = config.configuration.weather;
+      setWeatherOpenWeatherApiKey(weatherConfig.openWeatherApiKey || '');
+      setWeatherGeminiApiKey(weatherConfig.geminiApiKey || '');
+      setWeatherLocation(weatherConfig.location || 'Singapore');
+      setWeatherUnits(weatherConfig.units || 'Celsius');
+      setWeatherMaxResults(weatherConfig.maxResults?.toString() || '10');
+      setWeatherCustomInstructions(weatherConfig.customInstructions || '');
+      setSystemPrompt(config.configuration.systemPrompt || '');
+      setLimitations(config.configuration.limitations || '');
+    }
+    // Check if it's the new agent structure with weather
+    else if (config.type === 'agent' && config.agent && config.agent.weather) {
+      const weatherConfig = config.agent.weather;
+      setWeatherOpenWeatherApiKey(weatherConfig.openWeatherApiKey || '');
+      setWeatherGeminiApiKey(weatherConfig.geminiApiKey || '');
+      setWeatherLocation(weatherConfig.location || 'Singapore');
+      setWeatherUnits(weatherConfig.units || 'Celsius');
+      setWeatherMaxResults(weatherConfig.maxResults?.toString() || '10');
+      setWeatherCustomInstructions(weatherConfig.customInstructions || '');
+      setSystemPrompt(config.agent.systemPrompt || '');
+      setLimitations(config.agent.limitations || '');
+    }
     // If it's just system prompt and limitations
     else if (config.systemPrompt !== undefined || config.limitations !== undefined) {
       setSystemPrompt(config.systemPrompt || '');
@@ -238,6 +270,14 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
     setChunkUnit('Sentences');
     setEmbeddingModel('BAAI/bge-small-en');
     setTopKResults(10);
+
+    // Reset weather fields
+    setWeatherOpenWeatherApiKey('');
+    setWeatherGeminiApiKey('');
+    setWeatherLocation('Singapore');
+    setWeatherUnits('Celsius');
+    setWeatherMaxResults('10');
+    setWeatherCustomInstructions('');
   };
 
   // Fetch configuration from DB when selectedNode changes
@@ -258,22 +298,44 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
   // Helper function to determine if the current configuration is RAG-based
   const isRagConfiguration = (config: any) => {
     if (!config) return false;
-    
+
     console.log('🔍 Checking if RAG configuration:', config);
-    
+
     // Check various ways RAG config can be stored
     const hasRag = !!(
-      config.customRag || 
-      (config.agent && config.agent.customRag) || 
+      config.customRag ||
+      (config.agent && config.agent.customRag) ||
       (config.configuration && config.configuration.customRag) ||
       (config.type === 'agent' && config.agent && config.agent.customRag) ||
       (config.agent && config.agent.configuration && config.agent.configuration.customRag) ||
       // Additional check for direct agent configuration
       (config.type === 'agent' && config.agent && config.agent.configuration && config.agent.configuration.customRag)
     );
-    
+
     console.log('🔍 Has RAG configuration:', hasRag);
     return hasRag;
+  };
+
+  // Helper function to determine if the current configuration is weather-based
+  const isWeatherConfiguration = (config: any) => {
+    if (!config) return false;
+
+    console.log('🌤️ Checking if Weather configuration:', config);
+
+    // Check various ways weather config can be stored
+    const hasWeather = !!(
+      config.weather ||
+      (config.agent && config.agent.weather) ||
+      (config.configuration && config.configuration.weather) ||
+      (config.type === 'agent' && config.agent && config.agent.weather) ||
+      (config.agent && config.agent.configuration && config.agent.configuration.weather) ||
+      // Check for preset type
+      (config.configuration && config.configuration.preset === 'weather') ||
+      (config.agent && config.agent.configuration && config.agent.configuration.preset === 'weather')
+    );
+
+    console.log('🌤️ Has Weather configuration:', hasWeather);
+    return hasWeather;
   };
 
   const handleSave = async () => {
@@ -296,6 +358,8 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
 
       let agentConfig;
       
+      const isWeather = isWeatherConfiguration(existingConfig);
+
       if (isRag) {
         // RAG configuration
         agentConfig = {
@@ -309,6 +373,22 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
             chunkUnit,
             embeddingModel,
             topKResults
+          },
+          systemPrompt,
+          limitations,
+          updatedAt: new Date().toISOString()
+        };
+      } else if (isWeather) {
+        // Weather configuration
+        agentConfig = {
+          preset: 'weather',
+          weather: {
+            openWeatherApiKey: weatherOpenWeatherApiKey,
+            geminiApiKey: weatherGeminiApiKey,
+            location: weatherLocation,
+            units: weatherUnits,
+            maxResults: parseInt(weatherMaxResults),
+            customInstructions: weatherCustomInstructions
           },
           systemPrompt,
           limitations,
@@ -579,6 +659,63 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
                             <li>• The RAG model generates responses using the retrieved context</li>
                             <li>• All models run through Hugging Face's inference API</li>
                           </ul>
+                        </div>
+                      </>
+                    ) : isWeatherConfiguration(nodeConfig) ? (
+                      // Weather Configuration
+                      <>
+                        <h4 className="font-medium text-gray-900 mb-4">Weather Agent Configuration</h4>
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                          <h4 className="text-sm font-medium text-blue-800 mb-2">Weather Agent Configuration</h4>
+                          <p className="text-sm text-blue-700">
+                            This weather agent requires both API keys: OpenWeather for fetching weather data, and Gemini for processing and responding to weather queries with natural language.
+                          </p>
+                        </div>
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <InputField
+                              label="OpenWeather API Key *"
+                              placeholder="Enter your OpenWeatherMap API key for weather data"
+                              value={weatherOpenWeatherApiKey}
+                              onChange={setWeatherOpenWeatherApiKey}
+                              type="password"
+                            />
+                            <InputField
+                              label="Gemini API Key *"
+                              placeholder="Enter your Gemini API key to process weather results"
+                              value={weatherGeminiApiKey}
+                              onChange={setWeatherGeminiApiKey}
+                              type="password"
+                            />
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <InputField
+                              label="Default Location"
+                              placeholder="Singapore"
+                              value={weatherLocation}
+                              onChange={setWeatherLocation}
+                            />
+                            <SelectField
+                              label="Temperature Units"
+                              options={['Celsius', 'Fahrenheit', 'Kelvin']}
+                              value={weatherUnits}
+                              onChange={setWeatherUnits}
+                            />
+                            <InputField
+                              label="Max Search Results"
+                              type="number"
+                              placeholder="10"
+                              value={weatherMaxResults}
+                              onChange={setWeatherMaxResults}
+                            />
+                          </div>
+                          <TextareaField
+                            label="Custom Instructions"
+                            placeholder="Additional instructions for weather responses (e.g., include clothing recommendations, activity suggestions)"
+                            value={weatherCustomInstructions}
+                            onChange={setWeatherCustomInstructions}
+                            rows={3}
+                          />
                         </div>
                       </>
                     ) : (

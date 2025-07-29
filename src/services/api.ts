@@ -760,3 +760,88 @@ export const knowledgeBaseRAGService = {
     return this.getRelevantContext(agentId, query, connectedKnowledgeBaseNodes);
   }
 };
+
+// Weather service for OpenWeather API integration
+export const weatherService = {
+  async getCurrentWeather(apiKey: string, location: string, units: string = 'metric'): Promise<any> {
+    const unitsParam = units === 'Celsius' ? 'metric' : units === 'Fahrenheit' ? 'imperial' : 'kelvin';
+
+    try {
+      const response = await fetch(
+        `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(location)}&appid=${apiKey}&units=${unitsParam}`
+      );
+
+      if (!response.ok) {
+        const errorData = await response.text();
+        throw new Error(`OpenWeather API error (${response.status}): ${errorData}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      throw new Error(`Weather API request failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  },
+
+  async getForecast(apiKey: string, location: string, units: string = 'metric'): Promise<any> {
+    const unitsParam = units === 'Celsius' ? 'metric' : units === 'Fahrenheit' ? 'imperial' : 'kelvin';
+
+    try {
+      const response = await fetch(
+        `https://api.openweathermap.org/data/2.5/forecast?q=${encodeURIComponent(location)}&appid=${apiKey}&units=${unitsParam}`
+      );
+
+      if (!response.ok) {
+        const errorData = await response.text();
+        throw new Error(`OpenWeather API error (${response.status}): ${errorData}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      throw new Error(`Weather forecast request failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  },
+
+  // Helper function to determine if a query is weather-related
+  isWeatherQuery(query: string): boolean {
+    const weatherKeywords = [
+      'weather', 'temperature', 'rain', 'sunny', 'cloudy', 'storm', 'wind', 'humidity',
+      'forecast', 'climate', 'hot', 'cold', 'warm', 'cool', 'snow', 'precipitation',
+      'degrees', 'celsius', 'fahrenheit', 'umbrella', 'jacket', 'coat', 'shorts',
+      'today weather', 'tomorrow weather', 'this week weather', 'weekend weather'
+    ];
+
+    const lowerQuery = query.toLowerCase();
+    return weatherKeywords.some(keyword => lowerQuery.includes(keyword));
+  },
+
+  // Format weather data for Gemini processing
+  formatWeatherData(weatherData: any, forecastData?: any): string {
+    let formattedData = `Current Weather Data:\n`;
+
+    if (weatherData) {
+      formattedData += `Location: ${weatherData.name}, ${weatherData.sys?.country}\n`;
+      formattedData += `Temperature: ${weatherData.main?.temp}°\n`;
+      formattedData += `Feels like: ${weatherData.main?.feels_like}°\n`;
+      formattedData += `Condition: ${weatherData.weather?.[0]?.description}\n`;
+      formattedData += `Humidity: ${weatherData.main?.humidity}%\n`;
+      formattedData += `Wind Speed: ${weatherData.wind?.speed} m/s\n`;
+      formattedData += `Pressure: ${weatherData.main?.pressure} hPa\n`;
+
+      if (weatherData.visibility) {
+        formattedData += `Visibility: ${weatherData.visibility / 1000} km\n`;
+      }
+    }
+
+    if (forecastData && forecastData.list) {
+      formattedData += `\nForecast (next 24 hours):\n`;
+      const next24Hours = forecastData.list.slice(0, 8); // 8 * 3 hours = 24 hours
+
+      next24Hours.forEach((item: any, index: number) => {
+        const time = new Date(item.dt * 1000).toLocaleTimeString();
+        formattedData += `${time}: ${item.main.temp}°, ${item.weather[0].description}\n`;
+      });
+    }
+
+    return formattedData;
+  }
+};
