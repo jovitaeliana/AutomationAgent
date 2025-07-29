@@ -135,6 +135,12 @@ const AgentSelectionModal: React.FC<AgentSelectionModalProps> = ({ isOpen, onClo
                           </div>
                         )}
 
+                        {agent.configuration.customRag && (
+                          <div className="text-xs text-gray-600 mb-1">
+                            <span className="font-medium">Custom RAG:</span> {agent.configuration.customRag.model}, {agent.configuration.customRag.chunkingStrategy}, top-{agent.configuration.customRag.topKResults} results
+                          </div>
+                        )}
+
                         {agent.configuration.systemPrompt && (
                           <div className="text-xs text-gray-600 mt-2">
                             <span className="font-medium">System Prompt:</span> {agent.configuration.systemPrompt.substring(0, 100)}

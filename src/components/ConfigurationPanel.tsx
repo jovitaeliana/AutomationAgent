@@ -50,6 +50,16 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
   const [filterCriteria, setFilterCriteria] = useState('');
   const [systemPrompt, setSystemPrompt] = useState('');
   const [limitations, setLimitations] = useState('');
+  
+  // State for RAG configuration fields
+  const [huggingFaceApiKey, setHuggingFaceApiKey] = useState('');
+  const [ragModel, setRagModel] = useState('Mistral-7B-Instruct');
+  const [chunkingStrategy, setChunkingStrategy] = useState('SimpleNodeParser');
+  const [chunkSize, setChunkSize] = useState('512');
+  const [chunkOverlap, setChunkOverlap] = useState('50');
+  const [chunkUnit, setChunkUnit] = useState('Sentences');
+  const [embeddingModel, setEmbeddingModel] = useState('BAAI/bge-small-en');
+  const [topKResults, setTopKResults] = useState(10);
 
   // Resize handler
   const handleResize = useCallback((e: React.MouseEvent) => {
@@ -112,6 +122,19 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
       setSystemPrompt(config.systemPrompt || '');
       setLimitations(config.limitations || '');
     }
+    // Check if it's a direct node configuration object with customRag
+    else if (config.customRag) {
+      setHuggingFaceApiKey(config.customRag.huggingFaceApiKey || '');
+      setRagModel(config.customRag.model || 'Mistral-7B-Instruct');
+      setChunkingStrategy(config.customRag.chunkingStrategy || 'SimpleNodeParser');
+      setChunkSize(config.customRag.chunkSize?.toString() || '512');
+      setChunkOverlap(config.customRag.chunkOverlap?.toString() || '50');
+      setChunkUnit(config.customRag.chunkUnit || 'Sentences');
+      setEmbeddingModel(config.customRag.embeddingModel || 'BAAI/bge-small-en');
+      setTopKResults(config.customRag.topKResults || 10);
+      setSystemPrompt(config.systemPrompt || '');
+      setLimitations(config.limitations || '');
+    }
     // Check if it's the new agent structure with type and agent properties
     else if (config.type === 'agent' && config.agent && config.agent.search) {
       const agentConfig = config.agent;
@@ -122,6 +145,20 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
       setResultProcessing(agentConfig.search.resultProcessing || 'Summarize with Gemini');
       setCustomInstructions(agentConfig.search.customInstructions || '');
       setFilterCriteria(agentConfig.search.filterCriteria || '');
+      setSystemPrompt(agentConfig.systemPrompt || '');
+      setLimitations(agentConfig.limitations || '');
+    }
+    // Check if it's the new agent structure with type and agent properties for RAG
+    else if (config.type === 'agent' && config.agent && config.agent.customRag) {
+      const agentConfig = config.agent;
+      setHuggingFaceApiKey(agentConfig.customRag.huggingFaceApiKey || '');
+      setRagModel(agentConfig.customRag.model || 'Mistral-7B-Instruct');
+      setChunkingStrategy(agentConfig.customRag.chunkingStrategy || 'SimpleNodeParser');
+      setChunkSize(agentConfig.customRag.chunkSize?.toString() || '512');
+      setChunkOverlap(agentConfig.customRag.chunkOverlap?.toString() || '50');
+      setChunkUnit(agentConfig.customRag.chunkUnit || 'Sentences');
+      setEmbeddingModel(agentConfig.customRag.embeddingModel || 'BAAI/bge-small-en');
+      setTopKResults(agentConfig.customRag.topKResults || 10);
       setSystemPrompt(agentConfig.systemPrompt || '');
       setLimitations(agentConfig.limitations || '');
     }
@@ -137,6 +174,34 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
       setFilterCriteria(agentConfig.search.filterCriteria || '');
       setSystemPrompt(agentConfig.systemPrompt || '');
       setLimitations(agentConfig.limitations || '');
+    }
+    // Check if it's an Agent object with RAG configuration
+    else if (config.configuration && config.configuration.customRag) {
+      const agentConfig = config.configuration;
+      setHuggingFaceApiKey(agentConfig.customRag.huggingFaceApiKey || '');
+      setRagModel(agentConfig.customRag.model || 'Mistral-7B-Instruct');
+      setChunkingStrategy(agentConfig.customRag.chunkingStrategy || 'SimpleNodeParser');
+      setChunkSize(agentConfig.customRag.chunkSize?.toString() || '512');
+      setChunkOverlap(agentConfig.customRag.chunkOverlap?.toString() || '50');
+      setChunkUnit(agentConfig.customRag.chunkUnit || 'Sentences');
+      setEmbeddingModel(agentConfig.customRag.embeddingModel || 'BAAI/bge-small-en');
+      setTopKResults(agentConfig.customRag.topKResults || 10);
+      setSystemPrompt(agentConfig.systemPrompt || '');
+      setLimitations(agentConfig.limitations || '');
+    }
+    // Check if agent has nested configuration structure for RAG
+    else if (config.type === 'agent' && config.agent && config.agent.configuration && config.agent.configuration.customRag) {
+      const ragConfig = config.agent.configuration.customRag;
+      setHuggingFaceApiKey(ragConfig.huggingFaceApiKey || '');
+      setRagModel(ragConfig.model || 'Mistral-7B-Instruct');
+      setChunkingStrategy(ragConfig.chunkingStrategy || 'SimpleNodeParser');
+      setChunkSize(ragConfig.chunkSize?.toString() || '512');
+      setChunkOverlap(ragConfig.chunkOverlap?.toString() || '50');
+      setChunkUnit(ragConfig.chunkUnit || 'Sentences');
+      setEmbeddingModel(ragConfig.embeddingModel || 'BAAI/bge-small-en');
+      setTopKResults(ragConfig.topKResults || 10);
+      setSystemPrompt(config.agent.configuration.systemPrompt || '');
+      setLimitations(config.agent.configuration.limitations || '');
     }
     // If it's just system prompt and limitations
     else if (config.systemPrompt !== undefined || config.limitations !== undefined) {
@@ -159,6 +224,16 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
     setFilterCriteria('');
     setSystemPrompt('');
     setLimitations('');
+    
+    // Reset RAG fields
+    setHuggingFaceApiKey('');
+    setRagModel('Mistral-7B-Instruct');
+    setChunkingStrategy('SimpleNodeParser');
+    setChunkSize('512');
+    setChunkOverlap('50');
+    setChunkUnit('Sentences');
+    setEmbeddingModel('BAAI/bge-small-en');
+    setTopKResults(10);
   };
 
   // Fetch configuration from DB when selectedNode changes
@@ -176,6 +251,27 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
     }
   }, [nodeConfig, selectedNode, isLoadingConfig]);
 
+  // Helper function to determine if the current configuration is RAG-based
+  const isRagConfiguration = (config: any) => {
+    if (!config) return false;
+    
+    console.log('🔍 Checking if RAG configuration:', config);
+    
+    // Check various ways RAG config can be stored
+    const hasRag = !!(
+      config.customRag || 
+      (config.agent && config.agent.customRag) || 
+      (config.configuration && config.configuration.customRag) ||
+      (config.type === 'agent' && config.agent && config.agent.customRag) ||
+      (config.agent && config.agent.configuration && config.agent.configuration.customRag) ||
+      // Additional check for direct agent configuration
+      (config.type === 'agent' && config.agent && config.agent.configuration && config.agent.configuration.customRag)
+    );
+    
+    console.log('🔍 Has RAG configuration:', hasRag);
+    return hasRag;
+  };
+
   const handleSave = async () => {
     // First, save knowledge base changes if any
     if (knowledgeBaseSaveFunction) {
@@ -190,28 +286,52 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
       // This is an agent node - save agent configuration
       // Preserve existing configuration structure if it exists
       const existingConfig = nodeConfig || {};
+      const isRag = isRagConfiguration(existingConfig);
+
+      let agentConfig;
       
-      const agentConfig = {
-        preset: 'search',
-        search: {
-          serpApiKey,
-          geminiApiKey,
-          searchScope,
-          maxResults: parseInt(maxResults),
-          resultProcessing,
-          customInstructions,
-          filterCriteria,
-          processingPrompt: `Process search results according to these parameters:
+      if (isRag) {
+        // RAG configuration
+        agentConfig = {
+          preset: 'customRag',
+          customRag: {
+            huggingFaceApiKey,
+            model: ragModel,
+            chunkingStrategy,
+            chunkSize: parseInt(chunkSize),
+            chunkOverlap: parseInt(chunkOverlap),
+            chunkUnit,
+            embeddingModel,
+            topKResults
+          },
+          systemPrompt,
+          limitations,
+          updatedAt: new Date().toISOString()
+        };
+      } else {
+        // Search configuration
+        agentConfig = {
+          preset: 'search',
+          search: {
+            serpApiKey,
+            geminiApiKey,
+            searchScope,
+            maxResults: parseInt(maxResults),
+            resultProcessing,
+            customInstructions,
+            filterCriteria,
+            processingPrompt: `Process search results according to these parameters:
 - Scope: ${searchScope}
 - Custom Instructions: ${customInstructions}
 - Filter Criteria: ${filterCriteria}
 - Processing Type: ${resultProcessing}
 - Max Results: ${maxResults}`
-        },
-        systemPrompt,
-        limitations,
-        updatedAt: new Date().toISOString()
-      };
+          },
+          systemPrompt,
+          limitations,
+          updatedAt: new Date().toISOString()
+        };
+      }
 
       // Create updated config by merging with existing configuration
       let updatedConfig;
@@ -345,7 +465,115 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
                     </div>
                   )}
                   <div className={isLoadingConfig ? 'opacity-50 pointer-events-none' : ''}>
-                    <h4 className="font-medium text-gray-900 mb-4">Search Configuration</h4>
+                    {isRagConfiguration(nodeConfig) ? (
+                      // RAG Configuration
+                      <>
+                        <h4 className="font-medium text-gray-900 mb-4">RAG Model Configuration</h4>
+                        <div className="space-y-4">
+                          <InputField
+                            label="Hugging Face API Key *"
+                            placeholder="Enter your Hugging Face API key"
+                            value={huggingFaceApiKey}
+                            onChange={setHuggingFaceApiKey}
+                            type="password"
+                          />
+                          
+                          <SelectField
+                            label="RAG Model"
+                            options={[
+                              'Mistral-7B-Instruct',
+                              'Llama-3-8B-Instruct',
+                              'TinyLlama-1.1B-Chat',
+                              'OpenHermes-2.5-Mistral'
+                            ]}
+                            value={ragModel}
+                            onChange={setRagModel}
+                          />
+                          
+                          <div className="grid grid-cols-2 gap-4">
+                            <SelectField
+                              label="Chunking Strategy"
+                              options={[
+                                'SimpleNodeParser',
+                                'FixedSize',
+                                'SlidingWindow',
+                                'Semantic'
+                              ]}
+                              value={chunkingStrategy}
+                              onChange={setChunkingStrategy}
+                            />
+                            <SelectField
+                              label="Chunk Unit"
+                              options={[
+                                'Sentences',
+                                'Paragraphs',
+                                'Pages'
+                              ]}
+                              value={chunkUnit}
+                              onChange={setChunkUnit}
+                            />
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-4">
+                            <SelectField
+                              label="Chunk Size (tokens)"
+                              options={['256', '512', '1024']}
+                              value={chunkSize}
+                              onChange={setChunkSize}
+                            />
+                            <SelectField
+                              label="Overlap (tokens)"
+                              options={['0', '50', '100']}
+                              value={chunkOverlap}
+                              onChange={setChunkOverlap}
+                            />
+                          </div>
+                          
+                          <SelectField
+                            label="Embedding Model"
+                            options={[
+                              'BAAI/bge-small-en',
+                              'BAAI/bge-base-en-v1.5',
+                              'intfloat/e5-small-v2'
+                            ]}
+                            value={embeddingModel}
+                            onChange={setEmbeddingModel}
+                          />
+                          
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Top K Results: {topKResults}
+                            </label>
+                            <input
+                              type="range"
+                              min="1"
+                              max="20"
+                              value={topKResults}
+                              onChange={(e) => setTopKResults(parseInt(e.target.value))}
+                              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                            />
+                            <div className="flex justify-between text-xs text-gray-500 mt-1">
+                              <span>1</span>
+                              <span>20</span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-4">
+                          <h4 className="font-medium text-blue-900 mb-1 text-sm">How it works:</h4>
+                          <ul className="text-xs text-blue-800 space-y-1">
+                            <li>• Documents are chunked using your selected strategy and size</li>
+                            <li>• Text chunks are converted to embeddings using the selected model</li>
+                            <li>• When queried, the most relevant chunks are retrieved based on similarity</li>
+                            <li>• The RAG model generates responses using the retrieved context</li>
+                            <li>• All models run through Hugging Face's inference API</li>
+                          </ul>
+                        </div>
+                      </>
+                    ) : (
+                      // Search Configuration
+                      <>
+                        <h4 className="font-medium text-gray-900 mb-4">Search Configuration</h4>
                     <div className="space-y-4">
                       <div className="grid grid-cols-1 gap-4">
                         <InputField
@@ -403,34 +631,38 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
                         />
                       </div>
 
-                      <TextareaField
-                        label="Custom Instructions"
-                        placeholder="e.g., 'Focus only on restaurant information with ratings and opening hours'"
-                        value={customInstructions}
-                        onChange={setCustomInstructions}
-                        rows={3}
-                      />
+                          <TextareaField
+                            label="Custom Instructions"
+                            placeholder="e.g., 'Focus only on restaurant information with ratings and opening hours'"
+                            value={customInstructions}
+                            onChange={setCustomInstructions}
+                            rows={3}
+                          />
 
-                      <TextareaField
-                        label="Filter Criteria"
-                        placeholder="e.g., 'Only include results from the last 30 days'"
-                        value={filterCriteria}
-                        onChange={setFilterCriteria}
-                        rows={2}
-                      />
-                    </div>
+                          <TextareaField
+                            label="Filter Criteria"
+                            placeholder="e.g., 'Only include results from the last 30 days'"
+                            value={filterCriteria}
+                            onChange={setFilterCriteria}
+                            rows={2}
+                          />
+
+                        </div>
+                        
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                          <h4 className="font-medium text-blue-900 mb-1 text-sm">How it works:</h4>
+                          <ul className="text-xs text-blue-800 space-y-1">
+                            <li>• SerpAPI fetches search results based on your queries</li>
+                            <li>• Gemini AI processes and filters results according to your custom instructions</li>
+                            <li>• Results are formatted and presented according to your specified scope</li>
+                            <li>• Both API keys are required for the enhanced search functionality</li>
+                          </ul>
+                        </div>
+                      </>
+                    )}
                   </div>
 
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                    <h4 className="font-medium text-blue-900 mb-1 text-sm">How it works:</h4>
-                    <ul className="text-xs text-blue-800 space-y-1">
-                      <li>• SerpAPI fetches search results based on your queries</li>
-                      <li>• Gemini AI processes and filters results according to your custom instructions</li>
-                      <li>• Results are formatted and presented according to your specified scope</li>
-                      <li>• Both API keys are required for the enhanced search functionality</li>
-                    </ul>
-                  </div>
-
+                  
                   <div>
                     <h4 className="font-medium text-gray-900 mb-4">Limitations & Instructions</h4>
                     <div className="space-y-4">

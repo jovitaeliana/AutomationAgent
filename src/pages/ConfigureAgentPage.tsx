@@ -124,6 +124,243 @@ const AdvancedSearchConfigFields: React.FC<{
   </div>
 );
 
+// Custom RAG Configuration Fields component
+const CustomRAGConfigFields: React.FC<{
+  huggingFaceApiKey: string;
+  onHuggingFaceApiKeyChange: (value: string) => void;
+  ragModel: string;
+  onRagModelChange: (value: string) => void;
+  chunkingStrategy: string;
+  onChunkingStrategyChange: (value: string) => void;
+  chunkSize: string;
+  onChunkSizeChange: (value: string) => void;
+  chunkOverlap: string;
+  onChunkOverlapChange: (value: string) => void;
+  chunkUnit: string;
+  onChunkUnitChange: (value: string) => void;
+  embeddingModel: string;
+  onEmbeddingModelChange: (value: string) => void;
+  topKResults: number;
+  onTopKResultsChange: (value: number) => void;
+  uploadedDocuments: File[];
+  onUploadedDocumentsChange: (files: File[]) => void;
+}> = ({
+  huggingFaceApiKey, onHuggingFaceApiKeyChange,
+  ragModel, onRagModelChange,
+  chunkingStrategy, onChunkingStrategyChange,
+  chunkSize, onChunkSizeChange,
+  chunkOverlap, onChunkOverlapChange,
+  chunkUnit, onChunkUnitChange,
+  embeddingModel, onEmbeddingModelChange,
+  topKResults, onTopKResultsChange,
+  uploadedDocuments, onUploadedDocumentsChange
+}) => (
+  <div className="space-y-6">
+    {/* Hugging Face API Key */}
+    <InputField
+      label="Hugging Face API Key *"
+      placeholder="Enter your Hugging Face API key"
+      value={huggingFaceApiKey}
+      onChange={onHuggingFaceApiKeyChange}
+      type="password"
+    />
+
+    {/* API Key Info */}
+    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+      <h4 className="font-medium text-blue-900 mb-1 text-sm">Getting your Hugging Face API Key:</h4>
+      <ul className="text-xs text-blue-800 space-y-1">
+        <li>• Visit <a href="https://huggingface.co/settings/tokens" target="_blank" rel="noopener noreferrer" className="underline">huggingface.co/settings/tokens</a></li>
+        <li>• Create a new token with "Read" permissions</li>
+        <li>• Copy and paste the token above</li>
+        <li>• This enables access to open-source models for your RAG system</li>
+      </ul>
+    </div>
+
+    {/* Document Upload */}
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-2">
+        Upload Documents *
+      </label>
+      <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+        <input
+          type="file"
+          multiple
+          accept=".pdf,.txt,.docx,.json,.csv"
+          onChange={(e) => {
+            const files = Array.from(e.target.files || []);
+            onUploadedDocumentsChange(files);
+          }}
+          className="hidden"
+          id="document-upload"
+        />
+        <label htmlFor="document-upload" className="cursor-pointer">
+          <div className="text-gray-400 mb-2">
+            <svg className="mx-auto h-12 w-12" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+              <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+          <p className="text-sm text-gray-600">
+            Click to upload or drag and drop
+          </p>
+          <p className="text-xs text-gray-500">
+            PDF, TXT, DOCX, JSON, CSV files
+          </p>
+        </label>
+      </div>
+      {uploadedDocuments.length > 0 && (
+        <div className="mt-2">
+          <p className="text-sm font-medium text-gray-700 mb-1">Uploaded files:</p>
+          <ul className="text-xs text-gray-600 space-y-1">
+            {uploadedDocuments.map((file, index) => (
+              <li key={index} className="flex items-center justify-between bg-gray-50 px-2 py-1 rounded">
+                <span>{file.name} ({(file.size / 1024).toFixed(1)} KB)</span>
+                <button
+                  onClick={() => {
+                    onUploadedDocumentsChange(uploadedDocuments.filter((_, i) => i !== index));
+                  }}
+                  className="text-red-500 hover:text-red-700"
+                >
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+
+    {/* RAG Model Selection */}
+    <SelectField
+      label="RAG Model"
+      options={[
+        'Mistral-7B-Instruct',
+        'Llama-3-8B-Instruct',
+        'TinyLlama-1.1B-Chat',
+        'OpenHermes-2.5-Mistral'
+      ]}
+      value={ragModel}
+      onChange={onRagModelChange}
+    />
+
+    {/* Model descriptions */}
+    <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+      <h4 className="font-medium text-gray-900 mb-2 text-sm">Model Information:</h4>
+      <div className="text-xs text-gray-700 space-y-1">
+        {ragModel === 'Mistral-7B-Instruct' && (
+          <p><strong>Mistral-7B-Instruct:</strong> Fast, accurate, well-tuned for retrieval-based tasks (7B, 32k context)</p>
+        )}
+        {ragModel === 'Llama-3-8B-Instruct' && (
+          <p><strong>Llama-3-8B-Instruct:</strong> Strong factuality, great for QA or summaries (8B, 8k-16k context)</p>
+        )}
+        {ragModel === 'TinyLlama-1.1B-Chat' && (
+          <p><strong>TinyLlama-1.1B-Chat:</strong> Runs on low-resource machines, good for basic retrieval (1.1B, 4k context)</p>
+        )}
+        {ragModel === 'OpenHermes-2.5-Mistral' && (
+          <p><strong>OpenHermes-2.5-Mistral:</strong> Tuned for dialog, solid for multi-turn RAG chat (7B, 32k context)</p>
+        )}
+      </div>
+    </div>
+
+    {/* Chunking Configuration */}
+    <div className="grid grid-cols-2 gap-4">
+      <SelectField
+        label="Chunking Strategy"
+        options={[
+          'SimpleNodeParser',
+          'FixedSize',
+          'SlidingWindow',
+          'Semantic'
+        ]}
+        value={chunkingStrategy}
+        onChange={onChunkingStrategyChange}
+      />
+      <SelectField
+        label="Chunk Unit"
+        options={[
+          'Sentences',
+          'Paragraphs',
+          'Pages'
+        ]}
+        value={chunkUnit}
+        onChange={onChunkUnitChange}
+      />
+    </div>
+
+    <div className="grid grid-cols-2 gap-4">
+      <SelectField
+        label="Chunk Size (tokens)"
+        options={['256', '512', '1024', 'custom']}
+        value={chunkSize}
+        onChange={onChunkSizeChange}
+      />
+      <SelectField
+        label="Overlap (tokens)"
+        options={['0', '50', '100', 'custom']}
+        value={chunkOverlap}
+        onChange={onChunkOverlapChange}
+      />
+    </div>
+
+    {/* Embedding Model Selection */}
+    <SelectField
+      label="Embedding Model"
+      options={[
+        'BAAI/bge-small-en',
+        'BAAI/bge-base-en-v1.5',
+        'intfloat/e5-small-v2'
+      ]}
+      value={embeddingModel}
+      onChange={onEmbeddingModelChange}
+    />
+
+    {/* Embedding model descriptions */}
+    <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+      <h4 className="font-medium text-gray-900 mb-2 text-sm">Embedding Model Information:</h4>
+      <div className="text-xs text-gray-700 space-y-1">
+        {embeddingModel === 'BAAI/bge-small-en' && (
+          <p><strong>BAAI/bge-small-en:</strong> Fast, high accuracy per size, CPU-friendly (384 dim) - Default choice for general RAG</p>
+        )}
+        {embeddingModel === 'BAAI/bge-base-en-v1.5' && (
+          <p><strong>BAAI/bge-base-en-v1.5:</strong> Stronger embeddings, high-quality retrieval (768 dim) - Best for GPU-enabled setups</p>
+        )}
+        {embeddingModel === 'intfloat/e5-small-v2' && (
+          <p><strong>intfloat/e5-small-v2:</strong> Instruction-tuned, good performance (384 dim) - Best for instruction-style search</p>
+        )}
+      </div>
+    </div>
+
+    {/* Top K Results Slider */}
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-2">
+        Top K Results: {topKResults}
+      </label>
+      <input
+        type="range"
+        min="1"
+        max="20"
+        value={topKResults}
+        onChange={(e) => onTopKResultsChange(parseInt(e.target.value))}
+        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+      />
+      <div className="flex justify-between text-xs text-gray-500 mt-1">
+        <span>1</span>
+        <span>20</span>
+      </div>
+    </div>
+
+    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+      <h4 className="font-medium text-blue-900 mb-1 text-sm">How it works:</h4>
+      <ul className="text-xs text-blue-800 space-y-1">
+        <li>• Documents are chunked using your selected strategy and size</li>
+        <li>• Text chunks are converted to embeddings using the selected model</li>
+        <li>• When queried, the most relevant chunks are retrieved based on similarity</li>
+        <li>• The RAG model (via Hugging Face API) generates responses using the retrieved context</li>
+        <li>• All models are open-source and run through Hugging Face's inference API</li>
+      </ul>
+    </div>
+  </div>
+);
+
 const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) => {
   // State for data fetched from Supabase
   const [presets, setPresets] = useState<Preset[]>([]);
@@ -154,7 +391,18 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
   const [maxResults, setMaxResults] = useState('10');
   const [resultProcessing, setResultProcessing] = useState('Summarize with Gemini');
   const [filterCriteria, setFilterCriteria] = useState('');
-  
+
+  // Custom RAG configuration
+  const [huggingFaceApiKey, setHuggingFaceApiKey] = useState('');
+  const [ragModel, setRagModel] = useState('Mistral-7B-Instruct');
+  const [chunkingStrategy, setChunkingStrategy] = useState('SimpleNodeParser');
+  const [chunkSize, setChunkSize] = useState('512');
+  const [chunkOverlap, setChunkOverlap] = useState('50');
+  const [chunkUnit, setChunkUnit] = useState('Sentences');
+  const [embeddingModel, setEmbeddingModel] = useState('BAAI/bge-small-en');
+  const [topKResults, setTopKResults] = useState(10);
+  const [uploadedDocuments, setUploadedDocuments] = useState<File[]>([]);
+
   const [agentType, setAgentType] = useState('LLM Agent');
   const [configJson, setConfigJson] = useState('');
 
@@ -238,6 +486,21 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
       }
     }
 
+    // Validate custom RAG preset requirements
+    const selectedPresetData = presets.find(p => p.id === selectedPreset);
+    if (selectedPresetData && (selectedPresetData.title.toLowerCase().includes('rag') || selectedPresetData.id.toLowerCase().includes('rag'))) {
+      if (!huggingFaceApiKey.trim()) {
+        setSaveStatus('Hugging Face API key is required for RAG model functionality');
+        setTimeout(() => setSaveStatus(''), 3000);
+        return;
+      }
+      if (uploadedDocuments.length === 0) {
+        setSaveStatus('Please upload at least one document for the RAG model');
+        setTimeout(() => setSaveStatus(''), 3000);
+        return;
+      }
+    }
+
     setIsSaving(true);
     setSaveStatus('Saving configuration...');
 
@@ -252,45 +515,61 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
       };
 
       // Add preset-specific configuration
-      switch (selectedPreset) {
-        case 'weather':
-          configuration.weather = {
-            apiKey: weatherApiKey,
-            location,
-            units
-          };
-          break;
-        case 'search':
-          configuration.search = {
-            serpApiKey: serpApiKey,
-            geminiApiKey: geminiApiKey,
-            searchScope: searchScope,
-            customInstructions: customInstructions,
-            maxResults: parseInt(maxResults),
-            resultProcessing: resultProcessing,
-            filterCriteria: filterCriteria,
-            // Enhanced processing instructions for Gemini
-            processingPrompt: `Process search results according to these parameters:
+      const selectedPresetData = presets.find(p => p.id === selectedPreset);
+      const isRagPreset = selectedPresetData && (selectedPresetData.title.toLowerCase().includes('rag') || selectedPresetData.id.toLowerCase().includes('rag'));
+
+      if (selectedPreset === 'weather') {
+        configuration.weather = {
+          apiKey: weatherApiKey,
+          location,
+          units
+        };
+      } else if (selectedPreset === 'search') {
+        configuration.search = {
+          serpApiKey: serpApiKey,
+          geminiApiKey: geminiApiKey,
+          searchScope: searchScope,
+          customInstructions: customInstructions,
+          maxResults: parseInt(maxResults),
+          resultProcessing: resultProcessing,
+          filterCriteria: filterCriteria,
+          // Enhanced processing instructions for Gemini
+          processingPrompt: `Process search results according to these parameters:
 - Scope: ${searchScope}
 - Custom Instructions: ${customInstructions}
 - Filter Criteria: ${filterCriteria}
 - Processing Type: ${resultProcessing}
 - Max Results: ${maxResults}`
+        };
+      } else if (isRagPreset) {
+        configuration.customRag = {
+          huggingFaceApiKey,
+          model: ragModel,
+          chunkingStrategy,
+          chunkSize: parseInt(chunkSize),
+          chunkOverlap: parseInt(chunkOverlap),
+          chunkUnit,
+          embeddingModel,
+          topKResults,
+          documents: uploadedDocuments.map(file => ({
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            lastModified: file.lastModified
+          }))
+        };
+      } else if (selectedPreset === 'custom') {
+        try {
+          configuration.custom = {
+            agentType,
+            configJson: configJson ? JSON.parse(configJson) : {}
           };
-          break;
-        case 'custom':
-          try {
-            configuration.custom = {
-              agentType,
-              configJson: configJson ? JSON.parse(configJson) : {}
-            };
-          } catch (jsonError) {
-            setSaveStatus('Invalid JSON in custom configuration');
-            setIsSaving(false);
-            setTimeout(() => setSaveStatus(''), 3000);
-            return;
-          }
-          break;
+        } catch (jsonError) {
+          setSaveStatus('Invalid JSON in custom configuration');
+          setIsSaving(false);
+          setTimeout(() => setSaveStatus(''), 3000);
+          return;
+        }
       }
 
       // Save agent to Supabase
@@ -335,30 +614,44 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
   };
 
   const renderPresetFields = () => {
-    switch (selectedPreset) {
-      case 'weather': 
-        return <WeatherConfigFields 
-          apiKey={weatherApiKey} onApiKeyChange={setWeatherApiKey}
-          location={location} onLocationChange={setLocation}
-          units={units} onUnitsChange={setUnits} 
-        />;
-      case 'search': 
-        return <AdvancedSearchConfigFields 
-          serpApiKey={serpApiKey} onSerpApiKeyChange={setSerpApiKey}
-          geminiApiKey={geminiApiKey} onGeminiApiKeyChange={setGeminiApiKey}
-          searchScope={searchScope} onSearchScopeChange={setSearchScope}
-          customInstructions={customInstructions} onCustomInstructionsChange={setCustomInstructions}
-          maxResults={maxResults} onMaxResultsChange={setMaxResults}
-          resultProcessing={resultProcessing} onResultProcessingChange={setResultProcessing}
-          filterCriteria={filterCriteria} onFilterCriteriaChange={setFilterCriteria}
-        />;
-      case 'custom': 
-        return <CustomConfigFields 
-          agentType={agentType} onAgentTypeChange={setAgentType}
-          configJson={configJson} onConfigJsonChange={setConfigJson}
-        />;
-      default: 
-        return null;
+    const selectedPresetData = presets.find(p => p.id === selectedPreset);
+    const isRagPreset = selectedPresetData && (selectedPresetData.title.toLowerCase().includes('rag') || selectedPresetData.id.toLowerCase().includes('rag'));
+
+    if (selectedPreset === 'weather') {
+      return <WeatherConfigFields
+        apiKey={weatherApiKey} onApiKeyChange={setWeatherApiKey}
+        location={location} onLocationChange={setLocation}
+        units={units} onUnitsChange={setUnits}
+      />;
+    } else if (selectedPreset === 'search') {
+      return <AdvancedSearchConfigFields
+        serpApiKey={serpApiKey} onSerpApiKeyChange={setSerpApiKey}
+        geminiApiKey={geminiApiKey} onGeminiApiKeyChange={setGeminiApiKey}
+        searchScope={searchScope} onSearchScopeChange={setSearchScope}
+        customInstructions={customInstructions} onCustomInstructionsChange={setCustomInstructions}
+        maxResults={maxResults} onMaxResultsChange={setMaxResults}
+        resultProcessing={resultProcessing} onResultProcessingChange={setResultProcessing}
+        filterCriteria={filterCriteria} onFilterCriteriaChange={setFilterCriteria}
+      />;
+    } else if (isRagPreset) {
+      return <CustomRAGConfigFields
+        huggingFaceApiKey={huggingFaceApiKey} onHuggingFaceApiKeyChange={setHuggingFaceApiKey}
+        ragModel={ragModel} onRagModelChange={setRagModel}
+        chunkingStrategy={chunkingStrategy} onChunkingStrategyChange={setChunkingStrategy}
+        chunkSize={chunkSize} onChunkSizeChange={setChunkSize}
+        chunkOverlap={chunkOverlap} onChunkOverlapChange={setChunkOverlap}
+        chunkUnit={chunkUnit} onChunkUnitChange={setChunkUnit}
+        embeddingModel={embeddingModel} onEmbeddingModelChange={setEmbeddingModel}
+        topKResults={topKResults} onTopKResultsChange={setTopKResults}
+        uploadedDocuments={uploadedDocuments} onUploadedDocumentsChange={setUploadedDocuments}
+      />;
+    } else if (selectedPreset === 'custom') {
+      return <CustomConfigFields
+        agentType={agentType} onAgentTypeChange={setAgentType}
+        configJson={configJson} onConfigJsonChange={setConfigJson}
+      />;
+    } else {
+      return null;
     }
   };
 
