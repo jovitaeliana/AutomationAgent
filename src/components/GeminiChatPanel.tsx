@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ChevronLeft, Send, RotateCcw, Bot, User } from 'lucide-react';
 import { knowledgeBaseRAGService } from '../services/api';
 import type { Agent } from '../lib/supabase';
+import { isRagAgent } from '../utils/agentUtils';
 
 interface GeminiChatPanelProps {
   nodeId: string;
@@ -55,6 +56,11 @@ const GeminiChatPanel: React.FC<GeminiChatPanelProps> = ({
   const getApiKey = (): string | null => {
     if (!agentConfig?.configuration) return null;
 
+    // For RAG agents, use Gemini API key from environment (prototype behavior)
+    if (isRagAgent(agentConfig)) {
+      return import.meta.env.VITE_GEMINI_API_KEY || null;
+    }
+
     // Check different possible locations for API key
     const config = agentConfig.configuration;
     return config.geminiApiKey ||
@@ -99,13 +105,27 @@ const GeminiChatPanel: React.FC<GeminiChatPanelProps> = ({
       systemPrompt += `\nPlease note these guidelines: ${config.limitations}\n`;
     }
 
+    // Add system prompt from configuration
+    if (config.systemPrompt) {
+      systemPrompt += `\nAdditional instructions: ${config.systemPrompt}\n`;
+    }
+
     // Add search capabilities
     if (config.preset === 'search' && config.search) {
       systemPrompt += `
-        Your behavior and responses must strictly follow the configuration defined below. 
-        Do not go beyond these boundaries even if requested to do so by the user. 
-        Do not make assumptions or generate content that contradicts these rules. 
+        Your behavior and responses must strictly follow the configuration defined below.
+        Do not go beyond these boundaries even if requested to do so by the user.
+        Do not make assumptions or generate content that contradicts these rules.
         Respond clearly and concisely within the allowed capabilities.\n`;
+    }
+
+    // Add RAG-specific instructions
+    if (isRagAgent(agentConfig)) {
+      systemPrompt += `
+        You are a RAG (Retrieval-Augmented Generation) agent. When provided with knowledge base context,
+        prioritize that information in your responses. Use the knowledge base as your primary source of truth.
+        Your behavior and responses must follow the configuration defined above.
+        Be precise and accurate when using the provided context.\n`;
     }
 
     return systemPrompt.trim();
@@ -121,15 +141,17 @@ const GeminiChatPanel: React.FC<GeminiChatPanelProps> = ({
       const searchConfig = agentConfig?.configuration?.search;
       const maxResults = searchConfig?.maxResults || 10;
 
-      // Use backend endpoint to avoid CORS issues
-      const response = await fetch('http://localhost:3002/search', {
+      // Use Supabase Edge Function for search
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const response = await fetch(`${supabaseUrl}/functions/v1/search`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
         },
         body: JSON.stringify({
           query: query,
-          apiKey: serpApiKey,
+          serpApiKey: serpApiKey,
           options: {
             location: 'Singapore',
             hl: 'en',
@@ -140,28 +162,18 @@ const GeminiChatPanel: React.FC<GeminiChatPanelProps> = ({
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`Search request failed: ${errorData.error || response.statusText}`);
+        const errorData = await response.text();
+        throw new Error(`Search request failed (${response.status}): ${errorData}`);
       }
 
       const data = await response.json();
 
-      if (!data.success) {
-        throw new Error(`Search failed: ${data.error || 'Unknown error'}`);
+      if (data.error) {
+        throw new Error(`Search failed: ${data.error}`);
       }
 
-      const results = data.results || [];
-
-      if (results.length === 0) {
-        return "No search results found for your query.";
-      }
-
-      // Format search results for Gemini processing
-      const formattedResults = results.slice(0, maxResults).map((result: any, index: number) => {
-        return `${index + 1}. ${result.title}\n   ${result.snippet}\n   Source: ${result.link}`;
-      }).join('\n\n');
-
-      return formattedResults;
+      // The Edge Function returns formatted results as a string
+      return data.results || "No search results found for your query.";
     } catch (error) {
       throw new Error(`Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -199,7 +211,10 @@ const GeminiChatPanel: React.FC<GeminiChatPanelProps> = ({
     const apiKey = getApiKey();
 
     if (!apiKey) {
-      throw new Error('No API key found in agent configuration. Please configure the agent with a Gemini API key.');
+      const errorMessage = isRagAgent(agentConfig)
+        ? 'No HuggingFace token found in agent configuration. Please configure the agent first.'
+        : 'No API key found in agent configuration. Please configure the agent with a Gemini API key.';
+      throw new Error(errorMessage);
     }
 
     const systemPrompt = getSystemPrompt();
@@ -228,11 +243,20 @@ const GeminiChatPanel: React.FC<GeminiChatPanelProps> = ({
 Current Search Results:
 ${searchResults}${knowledgeContext}
 
-Instructions: ${knowledgeContext ? 'PRIORITY: Use the authoritative knowledge base information above as your primary source. If the knowledge base contains relevant information, use it to answer the question regardless of any training limitations. ' : ''}Based on the current search results above${knowledgeContext ? ' and the authoritative knowledge base' : ''}, please provide a helpful and accurate response to the user's question. ${searchConfig?.customInstructions || ''}
+Instructions: ${knowledgeContext ? 'PRIORITY: Use the authoritative knowledge base information above as your primary source. If the knowledge base contains relevant information, use it to answer the question regardless of any training limitations. ' : ''}You must provide a definitive and helpful answer based on the search results above${knowledgeContext ? ' and the authoritative knowledge base' : ''}.
 
+IMPORTANT GUIDELINES:
+1. Give specific recommendations from the search results, even if exact ratings aren't mentioned
+2. Provide at least 1-2 concrete examples with names, locations, and available details
+3. Use confident language like "Based on current search results, I recommend..." rather than "I cannot definitively identify"
+4. If exact ratings aren't available, mention other positive indicators (reviews, popularity, descriptions, or being featured in search results)
+5. Include practical details like addresses, opening hours, or contact info when available
+6. Be helpful and decisive while acknowledging your source is from current search data
+
+${searchConfig?.customInstructions || ''}
 ${searchConfig?.filterCriteria ? `Filter Criteria: ${searchConfig.filterCriteria}` : ''}
 
-Please provide a comprehensive answer using ${knowledgeContext ? 'FIRST the authoritative knowledge base information, then supplement with ' : ''}the current information from the search results.`;
+Answer the user's question directly and helpfully using ${knowledgeContext ? 'FIRST the authoritative knowledge base information, then supplement with ' : ''}the current search results.`;
       } catch (searchError) {
         // If search fails, continue with original message but mention the search failure
         finalUserMessage = `${userMessage}${knowledgeContext}
@@ -453,7 +477,10 @@ IMPORTANT: Answer this question using the authoritative knowledge base informati
       {!getApiKey() && (
         <div className="p-4 bg-red-50 border-b border-red-200">
           <div className="text-sm text-red-600">
-            ⚠️ No Gemini API key found in agent configuration. Please configure the agent first.
+            ⚠️ {isRagAgent(agentConfig)
+              ? 'No HuggingFace token found in agent configuration. Please configure the agent first.'
+              : 'No Gemini API key found in agent configuration. Please configure the agent first.'
+            }
           </div>
         </div>
       )}

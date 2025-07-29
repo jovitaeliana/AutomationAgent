@@ -914,7 +914,7 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
                           onClick={() => setTestMode('chat')}
                           className="w-full py-2 px-4 border border-app-border text-app-text rounded hover:bg-gray-100 transition-colors"
                         >
-                          Chat with Gemini
+                          Chat with Agent
                         </button>
                       </div>
                     ) : testMode === 'dataset' ? (

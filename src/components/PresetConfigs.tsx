@@ -3,18 +3,78 @@ import { InputField, SelectField, TextareaField } from './FormField';
 
 // --- Weather Config ---
 interface WeatherConfigProps {
-  apiKey: string;
-  onApiKeyChange: (value: string) => void;
+  openWeatherApiKey: string;
+  onOpenWeatherApiKeyChange: (value: string) => void;
+  geminiApiKey: string;
+  onGeminiApiKeyChange: (value: string) => void;
   location: string;
   onLocationChange: (value: string) => void;
   units: string;
   onUnitsChange: (value: string) => void;
+  maxResults: string;
+  onMaxResultsChange: (value: string) => void;
+  customInstructions: string;
+  onCustomInstructionsChange: (value: string) => void;
 }
-export const WeatherConfigFields: React.FC<WeatherConfigProps> = ({ apiKey, onApiKeyChange, location, onLocationChange, units, onUnitsChange }) => (
+export const WeatherConfigFields: React.FC<WeatherConfigProps> = ({
+  openWeatherApiKey, onOpenWeatherApiKeyChange,
+  geminiApiKey, onGeminiApiKeyChange,
+  location, onLocationChange,
+  units, onUnitsChange,
+  maxResults, onMaxResultsChange,
+  customInstructions, onCustomInstructionsChange
+}) => (
   <div className="space-y-6">
-    <InputField label="API Key" type="password" placeholder="OpenWeatherMap API key" value={apiKey} onChange={onApiKeyChange} />
-    <InputField label="Default Location" placeholder="Singapore" value={location} onChange={onLocationChange} />
-    <SelectField label="Units" options={['Celsius', 'Fahrenheit', 'Kelvin']} value={units} onChange={onUnitsChange} />
+    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+      <h4 className="text-sm font-medium text-blue-800 mb-2">Weather Agent Configuration</h4>
+      <p className="text-sm text-blue-700">
+        This weather agent requires both API keys: OpenWeather for fetching weather data, and Gemini for processing and responding to weather queries with natural language.
+      </p>
+    </div>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <InputField
+        label="OpenWeather API Key *"
+        type="password"
+        placeholder="Enter your OpenWeatherMap API key for weather data"
+        value={openWeatherApiKey}
+        onChange={onOpenWeatherApiKeyChange}
+      />
+      <InputField
+        label="Gemini API Key *"
+        type="password"
+        placeholder="Enter your Gemini API key to process weather results"
+        value={geminiApiKey}
+        onChange={onGeminiApiKeyChange}
+      />
+    </div>
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <InputField
+        label="Default Location"
+        placeholder="Singapore"
+        value={location}
+        onChange={onLocationChange}
+      />
+      <SelectField
+        label="Temperature Units"
+        options={['Celsius', 'Fahrenheit', 'Kelvin']}
+        value={units}
+        onChange={onUnitsChange}
+      />
+      <InputField
+        label="Max Search Results"
+        type="number"
+        placeholder="10"
+        value={maxResults}
+        onChange={onMaxResultsChange}
+      />
+    </div>
+    <TextareaField
+      label="Custom Instructions"
+      placeholder="Additional instructions for weather responses (e.g., include clothing recommendations, activity suggestions)"
+      value={customInstructions}
+      onChange={onCustomInstructionsChange}
+      rows={3}
+    />
   </div>
 );
 

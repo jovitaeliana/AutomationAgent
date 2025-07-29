@@ -1,9 +1,0 @@
-- The field of Artificial Intelligence (AI) was officially founded in 1956 at the Dartmouth Workshop.
-
-- 'Quantum AI' is not a standard category of AI types. Commonly discussed types include Narrow AI, General AI, and Superintelligence.
-
-- The Turing Test is designed to assess whether a machine can convincingly imitate human conversation, making it indistinguishable from a human.
-
-- Supervised learning is a type of machine learning that uses labeled data for training, where both the input and the desired output are known.
-
-- AI applications include healthcare diagnostics, algorithmic trading, and chatbots. Weather forecasting is not explicitly mentioned as an AI application in the referenced context.

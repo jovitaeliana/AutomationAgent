@@ -6,7 +6,8 @@ import { InputField, TextareaField, SelectField } from '../components/FormField'
 import { WeatherConfigFields, CustomConfigFields } from '../components/PresetConfigs';
 import { BackButtonIcon } from '../components/Icons';
 import { presetService, agentService } from '../services/api';
-import type { Preset } from '../lib/supabase';
+import { useToast } from '../components/ToastContainer';
+import type { Preset, Agent } from '../lib/supabase';
 
 type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'agent-creation';
 
@@ -364,12 +365,16 @@ const CustomRAGConfigFields: React.FC<{
 const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) => {
   // State for data fetched from Supabase
   const [presets, setPresets] = useState<Preset[]>([]);
-  
+  const [existingAgents, setExistingAgents] = useState<Agent[]>([]);
+
   // State for loading and error handling
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<string>('');
+
+  // Toast notifications
+  const { showSuccess, showError } = useToast();
 
   // State for user selections and form inputs
   const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
@@ -379,9 +384,13 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
   const [limitations, setLimitations] = useState('');
   
   // State for preset-specific fields
-  const [weatherApiKey, setWeatherApiKey] = useState('');
+  // Weather configuration
+  const [openWeatherApiKey, setOpenWeatherApiKey] = useState('');
+  const [weatherGeminiApiKey, setWeatherGeminiApiKey] = useState('');
   const [location, setLocation] = useState('Singapore');
   const [units, setUnits] = useState('Celsius');
+  const [weatherMaxResults, setWeatherMaxResults] = useState('10');
+  const [weatherCustomInstructions, setWeatherCustomInstructions] = useState('');
   
   // Enhanced search configuration
   const [serpApiKey, setSerpApiKey] = useState('');
@@ -406,25 +415,31 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
   const [agentType, setAgentType] = useState('LLM Agent');
   const [configJson, setConfigJson] = useState('');
 
-  // useEffect to fetch presets when the component mounts
+  // useEffect to fetch presets and agents when the component mounts
   useEffect(() => {
-    const fetchPresets = async () => {
+    const fetchData = async () => {
       try {
         setIsLoading(true);
         setError(null);
-        
-        const data = await presetService.getAll();
-        setPresets(data);
+
+        // Fetch presets and agents in parallel
+        const [presetsData, agentsData] = await Promise.all([
+          presetService.getAll(),
+          agentService.getAll()
+        ]);
+
+        setPresets(presetsData);
+        setExistingAgents(agentsData);
       } catch (err) {
-        console.error('Error fetching presets:', err);
+        console.error('Error fetching data:', err);
         if (err instanceof Error) setError(err.message);
         else setError('An unknown error occurred');
       } finally {
         setIsLoading(false);
       }
     };
-    
-    fetchPresets();
+
+    fetchData();
   }, []);
 
   // Handle preset configuration
@@ -486,6 +501,18 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
       }
     }
 
+    // Validate weather preset requirements
+    if (selectedPreset === 'weather') {
+      if (!openWeatherApiKey.trim()) {
+        showError('Validation Error', 'OpenWeather API key is required for weather functionality');
+        return;
+      }
+      if (!weatherGeminiApiKey.trim()) {
+        showError('Validation Error', 'Gemini API key is required to process weather results');
+        return;
+      }
+    }
+
     // Validate custom RAG preset requirements
     const selectedPresetData = presets.find(p => p.id === selectedPreset);
     if (selectedPresetData && (selectedPresetData.title.toLowerCase().includes('rag') || selectedPresetData.id.toLowerCase().includes('rag'))) {
@@ -520,9 +547,12 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
 
       if (selectedPreset === 'weather') {
         configuration.weather = {
-          apiKey: weatherApiKey,
+          openWeatherApiKey,
+          geminiApiKey: weatherGeminiApiKey,
           location,
-          units
+          units,
+          maxResults: parseInt(weatherMaxResults),
+          customInstructions: weatherCustomInstructions
         };
       } else if (selectedPreset === 'search') {
         configuration.search = {
@@ -580,8 +610,12 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
       });
 
       console.log('Agent saved successfully:', savedAgent);
-      setSaveStatus('Configuration saved successfully! Your agent is now ready to use.');
-      
+      showSuccess('Configuration Saved', `Agent "${agentName}" has been created successfully!`);
+
+      // Refresh the agents list
+      const updatedAgents = await agentService.getAll();
+      setExistingAgents(updatedAgents);
+
       // Reset form after successful save
       setTimeout(() => {
         setAgentName('');
@@ -589,9 +623,12 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
         setSystemPrompt('');
         setLimitations('');
         setSelectedPreset(null);
-        setWeatherApiKey('');
+        setOpenWeatherApiKey('');
+        setWeatherGeminiApiKey('');
         setLocation('Singapore');
         setUnits('Celsius');
+        setWeatherMaxResults('10');
+        setWeatherCustomInstructions('');
         setSerpApiKey('');
         setGeminiApiKey('');
         setSearchScope('General Web Search');
@@ -602,14 +639,32 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
         setAgentType('LLM Agent');
         setConfigJson('');
         setSaveStatus('');
-      }, 3000);
+      }, 1000);
 
     } catch (err) {
       console.error('Error saving agent:', err);
-      setSaveStatus(`Save failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      showError('Save Failed', `Failed to save agent configuration: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setIsSaving(false);
-      setTimeout(() => setSaveStatus(''), 8000);
+    }
+  };
+
+  // Handle agent deletion
+  const handleDeleteAgent = async (agentId: string, agentName: string) => {
+    if (!confirm(`Are you sure you want to delete the agent "${agentName}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      await agentService.delete(agentId);
+      showSuccess('Agent Deleted', `Agent "${agentName}" has been deleted successfully.`);
+
+      // Refresh the agents list
+      const updatedAgents = await agentService.getAll();
+      setExistingAgents(updatedAgents);
+    } catch (error) {
+      console.error('Error deleting agent:', error);
+      showError('Delete Failed', `Failed to delete agent "${agentName}". Please try again.`);
     }
   };
 
@@ -619,9 +674,12 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
 
     if (selectedPreset === 'weather') {
       return <WeatherConfigFields
-        apiKey={weatherApiKey} onApiKeyChange={setWeatherApiKey}
+        openWeatherApiKey={openWeatherApiKey} onOpenWeatherApiKeyChange={setOpenWeatherApiKey}
+        geminiApiKey={weatherGeminiApiKey} onGeminiApiKeyChange={setWeatherGeminiApiKey}
         location={location} onLocationChange={setLocation}
         units={units} onUnitsChange={setUnits}
+        maxResults={weatherMaxResults} onMaxResultsChange={setWeatherMaxResults}
+        customInstructions={weatherCustomInstructions} onCustomInstructionsChange={setWeatherCustomInstructions}
       />;
     } else if (selectedPreset === 'search') {
       return <AdvancedSearchConfigFields
@@ -683,14 +741,54 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
           </div>
         )}
 
+        {/* Existing Agents Section */}
+        <SectionCard title="Existing Agents">
+          {isLoading && <p>Loading agents...</p>}
+          {error && <p className="text-red-500">Error: {error}</p>}
+          {!isLoading && !error && (
+            <>
+              {existingAgents.length === 0 ? (
+                <p className="text-gray-500 text-center py-8">No agents created yet. Create your first agent using the presets below.</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {existingAgents.map((agent) => (
+                    <div key={agent.id} className="border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors">
+                      <div className="flex items-start justify-between mb-2">
+                        <h3 className="font-semibold text-gray-900 truncate">{agent.name}</h3>
+                        <button
+                          onClick={() => handleDeleteAgent(agent.id, agent.name)}
+                          className="text-red-500 hover:text-red-700 text-sm font-medium ml-2 flex-shrink-0"
+                          title="Delete agent"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                      {agent.description && (
+                        <p className="text-sm text-gray-600 mb-2 line-clamp-2">{agent.description}</p>
+                      )}
+                      <div className="text-xs text-gray-500">
+                        {agent.configuration?.preset && (
+                          <span className="inline-block bg-gray-100 px-2 py-1 rounded">
+                            {agent.configuration.preset}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </SectionCard>
+
         <SectionCard title="Quick Setup Presets">
           {isLoading && <p>Loading presets...</p>}
           {error && <p className="text-red-500">Error: {error}</p>}
           {!isLoading && !error && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {presets.map((preset) => (
-                <PresetCard 
-                  key={preset.id} 
+                <PresetCard
+                  key={preset.id}
                   id={preset.id}
                   emoji={preset.emoji}
                   title={preset.title}

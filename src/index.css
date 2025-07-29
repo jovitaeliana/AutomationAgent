@@ -17,3 +17,11 @@
   --color-app-bg-content: #ffffff;
   --color-app-bg-highlight: #f0f4ff;
 }
+
+/* Utility classes */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

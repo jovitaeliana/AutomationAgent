@@ -6,6 +6,7 @@ import AppChoicePage from './pages/AppChoicePage';
 import UploadDatasetPage from './pages/UploadDatasetPage';
 import AgentCreationPage from './pages/AgentCreationPage';
 import UploadTestingFilePage from './pages/DatasetTestingPage';
+import { ToastProvider } from './components/ToastContainer';
 
 type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'agent-creation';
 
@@ -65,21 +66,23 @@ function App() {
   };
 
   return (
-    <div>
-      {/* Temporary navigation bar for easy testing */}
-      <nav className="p-2 bg-gray-800 text-white text-xs text-center sticky top-0 z-50">
-        <span className="font-bold">Temp Nav:</span>
-        <button onClick={() => navigate('home')} className="ml-4 underline opacity-80 hover:opacity-100">Home</button>
-        <button onClick={() => navigate('configure')} className="ml-4 underline opacity-80 hover:opacity-100">Configure Agent</button>
-        <button onClick={() => navigate('choice')} className="ml-4 underline opacity-80 hover:opacity-100">App Choice</button>
-        <button onClick={() => navigate('dataset-testing')} className="ml-4 underline opacity-80 hover:opacity-100">Upload Test Files</button>
-        <button onClick={() => navigate('upload-dataset')} className="ml-4 underline opacity-80 hover:opacity-100">Upload Dataset</button>
-        <button onClick={() => navigate('agent-creation')} className="ml-4 underline opacity-80 hover:opacity-100">Agent Creation</button>
-      </nav>
+    <ToastProvider>
+      <div>
+        {/* Temporary navigation bar for easy testing */}
+        <nav className="p-2 bg-gray-800 text-white text-xs text-center sticky top-0 z-50">
+          <span className="font-bold">Temp Nav:</span>
+          <button onClick={() => navigate('home')} className="ml-4 underline opacity-80 hover:opacity-100">Home</button>
+          <button onClick={() => navigate('configure')} className="ml-4 underline opacity-80 hover:opacity-100">Configure Agent</button>
+          <button onClick={() => navigate('choice')} className="ml-4 underline opacity-80 hover:opacity-100">App Choice</button>
+          <button onClick={() => navigate('dataset-testing')} className="ml-4 underline opacity-80 hover:opacity-100">Upload Test Files</button>
+          <button onClick={() => navigate('upload-dataset')} className="ml-4 underline opacity-80 hover:opacity-100">Upload Dataset</button>
+          <button onClick={() => navigate('agent-creation')} className="ml-4 underline opacity-80 hover:opacity-100">Agent Creation</button>
+        </nav>
 
-      {/* Render the active page */}
-      {renderPage()}
-    </div>
+        {/* Render the active page */}
+        {renderPage()}
+      </div>
+    </ToastProvider>
   );
 }
 

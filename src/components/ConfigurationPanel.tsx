@@ -7,6 +7,7 @@ import type { Dataset, Agent } from '../lib/supabase';
 import KnowledgeBaseConfig from './KnowledgeBaseConfig';
 import AgentKnowledgeBaseConfig from './AgentKnowledgeBaseConfig';
 import { nodeConfigService } from '../services/api';
+import { useToast } from './ToastContainer';
 
 interface ConfigurationPanelProps {
   selectedNode: FlowNodeData | null;
@@ -39,6 +40,9 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
   const [isResizing, setIsResizing] = useState(false);
   const [knowledgeBaseSaveFunction, setKnowledgeBaseSaveFunction] = useState<(() => Promise<void>) | null>(null);
   const [isLoadingConfig, setIsLoadingConfig] = useState(false);
+
+  // Toast notifications
+  const { showSuccess, showError } = useToast();
 
   // State for agent configuration fields
   const [serpApiKey, setSerpApiKey] = useState('');
@@ -273,15 +277,17 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
   };
 
   const handleSave = async () => {
-    // First, save knowledge base changes if any
-    if (knowledgeBaseSaveFunction) {
-      try {
-        await knowledgeBaseSaveFunction();
-      } catch (error) {
-        console.error('Error saving knowledge base configuration:', error);
-        // Continue with other saves even if KB save fails
+    try {
+      // First, save knowledge base changes if any
+      if (knowledgeBaseSaveFunction) {
+        try {
+          await knowledgeBaseSaveFunction();
+        } catch (error) {
+          console.error('Error saving knowledge base configuration:', error);
+          showError('Knowledge Base Save Failed', 'Failed to save knowledge base configuration. Other settings will still be saved.');
+          // Continue with other saves even if KB save fails
+        }
       }
-    }
     if (selectedNode && selectedNode.title.includes('🤖')) {
       // This is an agent node - save agent configuration
       // Preserve existing configuration structure if it exists
@@ -355,6 +361,11 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
       onConfigChange(updatedConfig);
     }
     onSave();
+    showSuccess('Configuration Saved', 'Agent configuration has been saved successfully.');
+    } catch (error) {
+      console.error('Error saving configuration:', error);
+      showError('Save Failed', 'Failed to save configuration. Please try again.');
+    }
   };
 
   if (!selectedNode) return null;

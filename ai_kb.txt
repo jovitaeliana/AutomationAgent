@@ -1,0 +1,20 @@
+Title: Introduction to Artificial Intelligence (AI)
+
+Artificial Intelligence (AI) refers to the simulation of human intelligence in machines that are programmed to think, learn, and perform tasks typically requiring human cognition. These tasks include problem-solving, language understanding, perception, and decision-making.
+
+AI can be categorized into two main types:
+
+1. Narrow AI: Also known as weak AI, this type is designed to perform a specific task, such as facial recognition, language translation, or internet search engines.
+
+2. General AI: Also known as strong AI, this form of AI would possess the ability to understand, learn, and apply knowledge across a wide range of tasks—much like a human. This type of AI remains largely theoretical at present.
+
+Common AI technologies include:
+- Machine Learning (ML): A subset of AI focused on training algorithms to learn from and make predictions on data.
+- Natural Language Processing (NLP): Allows computers to understand, interpret, and respond in human language.
+- Computer Vision: Enables machines to interpret visual information from the world.
+
+AI is used in many industries such as healthcare, finance, transportation, and education. It powers virtual assistants, recommendation systems, autonomous vehicles, and much more.
+
+While AI brings numerous benefits, it also raises ethical concerns around privacy, job displacement, and decision-making transparency.
+
+Overall, AI continues to evolve rapidly, shaping the future of technology and society.
