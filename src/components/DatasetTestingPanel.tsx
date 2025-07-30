@@ -84,6 +84,12 @@ const DatasetTestingPanel: React.FC<DatasetTestingPanelProps> = ({
       return import.meta.env.VITE_GEMINI_API_KEY || null;
     }
 
+    // For weather agents, use the weather-specific Gemini API key
+    if (isWeatherAgent()) {
+      const { geminiApiKey } = getWeatherApiKeys();
+      if (geminiApiKey) return geminiApiKey;
+    }
+
     // Check different possible locations for API key
     const config = agentConfig.configuration;
     return config.geminiApiKey ||
@@ -241,6 +247,11 @@ const DatasetTestingPanel: React.FC<DatasetTestingPanelProps> = ({
 
   const performWeatherQuery = async (query: string): Promise<string> => {
     const { openWeatherApiKey, geminiApiKey } = getWeatherApiKeys();
+    console.log('Weather API keys check:', {
+      hasOpenWeatherKey: !!openWeatherApiKey,
+      hasGeminiKey: !!geminiApiKey
+    });
+
     if (!openWeatherApiKey || !geminiApiKey) {
       throw new Error('Weather API keys not found in agent configuration');
     }
@@ -250,17 +261,25 @@ const DatasetTestingPanel: React.FC<DatasetTestingPanelProps> = ({
       const location = weatherConfig?.location || 'Singapore';
       const units = weatherConfig?.units || 'Celsius';
 
+      console.log('Fetching weather data:', { location, units });
+
       // Get current weather and forecast
       const [currentWeather, forecast] = await Promise.all([
         weatherService.getCurrentWeather(openWeatherApiKey, location, units),
         weatherService.getForecast(openWeatherApiKey, location, units)
       ]);
 
+      console.log('Weather data received:', {
+        currentWeather: !!currentWeather,
+        forecast: !!forecast
+      });
+
       // Format weather data for Gemini processing
       const formattedWeatherData = weatherService.formatWeatherData(currentWeather, forecast);
 
       return formattedWeatherData;
     } catch (error) {
+      console.error('Weather query error:', error);
       throw new Error(`Weather query failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
@@ -283,7 +302,19 @@ const DatasetTestingPanel: React.FC<DatasetTestingPanelProps> = ({
       }
 
       // Check if this is a weather agent and the query is weather-related
-      if (isWeatherAgent() && hasWeatherCapability() && weatherService.isWeatherQuery(question)) {
+      const isWeatherAgentCheck = isWeatherAgent();
+      const hasWeatherCapabilityCheck = hasWeatherCapability();
+      const isWeatherQueryCheck = weatherService.isWeatherQuery(question);
+
+      console.log('Weather agent checks:', {
+        isWeatherAgent: isWeatherAgentCheck,
+        hasWeatherCapability: hasWeatherCapabilityCheck,
+        isWeatherQuery: isWeatherQueryCheck,
+        question
+      });
+
+      if (isWeatherAgentCheck && hasWeatherCapabilityCheck && isWeatherQueryCheck) {
+        console.log('Processing weather query:', question);
         try {
           const weatherData = await performWeatherQuery(question);
           const weatherConfig = agentConfig?.configuration?.weather;
@@ -305,6 +336,18 @@ IMPORTANT GUIDELINES:
 ${weatherConfig?.customInstructions || ''}
 
 Answer the user's weather question using the current weather data provided above${knowledgeContext ? ' and any relevant knowledge base information' : ''}.`;
+
+          console.log('Weather prompt prepared for Gemini:', {
+            originalQuestion: question,
+            weatherDataLength: weatherData.length,
+            hasCustomInstructions: !!weatherConfig?.customInstructions
+          });
+
+          console.log('Weather prompt prepared for Gemini:', {
+            originalQuestion: question,
+            weatherDataLength: weatherData.length,
+            hasCustomInstructions: !!weatherConfig?.customInstructions
+          });
         } catch (weatherError) {
           // If weather query fails, continue with original message but mention the weather failure
           finalQuestion = `${question}${knowledgeContext}
@@ -481,6 +524,12 @@ IMPORTANT: Answer this question using the authoritative knowledge base informati
   const runSingleTest = async (questionIndex: number): Promise<TestResult> => {
     const question = questions[questionIndex];
     const apiKey = getApiKey();
+
+    console.log('Running test with API key:', {
+      hasApiKey: !!apiKey,
+      isWeatherAgent: isWeatherAgent(),
+      question
+    });
 
     if (!apiKey) {
       const errorMessage = isRagAgent(agentConfig)

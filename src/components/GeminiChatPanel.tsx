@@ -61,6 +61,12 @@ const GeminiChatPanel: React.FC<GeminiChatPanelProps> = ({
       return import.meta.env.VITE_GEMINI_API_KEY || null;
     }
 
+    // For weather agents, use the weather-specific Gemini API key
+    if (isWeatherAgent()) {
+      const { geminiApiKey } = getWeatherApiKeys();
+      if (geminiApiKey) return geminiApiKey;
+    }
+
     // Check different possible locations for API key
     const config = agentConfig.configuration;
     return config.geminiApiKey ||
@@ -205,6 +211,11 @@ const GeminiChatPanel: React.FC<GeminiChatPanelProps> = ({
 
   const performWeatherQuery = async (query: string): Promise<string> => {
     const { openWeatherApiKey, geminiApiKey } = getWeatherApiKeys();
+    console.log('Weather API keys check:', {
+      hasOpenWeatherKey: !!openWeatherApiKey,
+      hasGeminiKey: !!geminiApiKey
+    });
+
     if (!openWeatherApiKey || !geminiApiKey) {
       throw new Error('Weather API keys not found in agent configuration');
     }
@@ -214,17 +225,25 @@ const GeminiChatPanel: React.FC<GeminiChatPanelProps> = ({
       const location = weatherConfig?.location || 'Singapore';
       const units = weatherConfig?.units || 'Celsius';
 
+      console.log('Fetching weather data:', { location, units });
+
       // Get current weather and forecast
       const [currentWeather, forecast] = await Promise.all([
         weatherService.getCurrentWeather(openWeatherApiKey, location, units),
         weatherService.getForecast(openWeatherApiKey, location, units)
       ]);
 
+      console.log('Weather data received:', {
+        currentWeather: !!currentWeather,
+        forecast: !!forecast
+      });
+
       // Format weather data for Gemini processing
       const formattedWeatherData = weatherService.formatWeatherData(currentWeather, forecast);
 
       return formattedWeatherData;
     } catch (error) {
+      console.error('Weather query error:', error);
       throw new Error(`Weather query failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
@@ -283,7 +302,19 @@ const GeminiChatPanel: React.FC<GeminiChatPanelProps> = ({
     }
 
     // Check if this is a weather agent and the query is weather-related
-    if (isWeatherAgent() && hasWeatherCapability() && weatherService.isWeatherQuery(userMessage)) {
+    const isWeatherAgentCheck = isWeatherAgent();
+    const hasWeatherCapabilityCheck = hasWeatherCapability();
+    const isWeatherQueryCheck = weatherService.isWeatherQuery(userMessage);
+
+    console.log('Weather agent checks:', {
+      isWeatherAgent: isWeatherAgentCheck,
+      hasWeatherCapability: hasWeatherCapabilityCheck,
+      isWeatherQuery: isWeatherQueryCheck,
+      userMessage
+    });
+
+    if (isWeatherAgentCheck && hasWeatherCapabilityCheck && isWeatherQueryCheck) {
+      console.log('Processing weather query:', userMessage);
       try {
         const weatherData = await performWeatherQuery(userMessage);
         const weatherConfig = agentConfig?.configuration?.weather;
@@ -305,6 +336,18 @@ IMPORTANT GUIDELINES:
 ${weatherConfig?.customInstructions || ''}
 
 Answer the user's weather question using the current weather data provided above${knowledgeContext ? ' and any relevant knowledge base information' : ''}.`;
+
+        console.log('Weather prompt prepared for Gemini:', {
+          originalMessage: userMessage,
+          weatherDataLength: weatherData.length,
+          hasCustomInstructions: !!weatherConfig?.customInstructions
+        });
+
+        console.log('Weather prompt prepared for Gemini:', {
+          originalMessage: userMessage,
+          weatherDataLength: weatherData.length,
+          hasCustomInstructions: !!weatherConfig?.customInstructions
+        });
       } catch (weatherError) {
         // If weather query fails, continue with original message but mention the weather failure
         finalUserMessage = `${userMessage}${knowledgeContext}

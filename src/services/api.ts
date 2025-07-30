@@ -807,11 +807,20 @@ export const weatherService = {
       'weather', 'temperature', 'rain', 'sunny', 'cloudy', 'storm', 'wind', 'humidity',
       'forecast', 'climate', 'hot', 'cold', 'warm', 'cool', 'snow', 'precipitation',
       'degrees', 'celsius', 'fahrenheit', 'umbrella', 'jacket', 'coat', 'shorts',
-      'today weather', 'tomorrow weather', 'this week weather', 'weekend weather'
+      'today weather', 'tomorrow weather', 'this week weather', 'weekend weather',
+      'raining', 'snowing', 'windy', 'foggy', 'drizzle', 'thunderstorm', 'overcast',
+      'what\'s the weather', 'how\'s the weather', 'weather like', 'weather today',
+      'weather tomorrow', 'weather forecast', 'temperature today', 'how hot', 'how cold',
+      'should i wear', 'what to wear', 'need umbrella', 'need jacket'
     ];
 
     const lowerQuery = query.toLowerCase();
-    return weatherKeywords.some(keyword => lowerQuery.includes(keyword));
+    const isWeatherRelated = weatherKeywords.some(keyword => lowerQuery.includes(keyword));
+
+    // Add debug logging
+    console.log('Weather query check:', { query, isWeatherRelated });
+
+    return isWeatherRelated;
   },
 
   // Format weather data for Gemini processing
