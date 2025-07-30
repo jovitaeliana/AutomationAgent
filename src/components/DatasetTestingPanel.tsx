@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Play, Pause, RotateCcw, CheckCircle, XCircle, Clock } from 'lucide-react';
-import { datasetService, knowledgeBaseRAGService, weatherService } from '../services/api';
+import { datasetService, knowledgeBaseRAGService, weatherService, callLocalModelAPI } from '../services/api';
 import type { Dataset, Agent } from '../lib/supabase';
 import { isRagAgent } from '../utils/agentUtils';
 
@@ -79,9 +79,9 @@ const DatasetTestingPanel: React.FC<DatasetTestingPanelProps> = ({
   const getApiKey = (): string | null => {
     if (!agentConfig?.configuration) return null;
 
-    // For RAG agents, use Gemini API key from environment (prototype behavior)
+    // For RAG agents, no API key needed (using local models)
     if (isRagAgent(agentConfig)) {
-      return import.meta.env.VITE_GEMINI_API_KEY || null;
+      return 'local-model'; // Return a placeholder to indicate local model usage
     }
 
     // For weather agents, use the weather-specific Gemini API key
@@ -286,6 +286,38 @@ const DatasetTestingPanel: React.FC<DatasetTestingPanelProps> = ({
 
   const callGeminiAPI = async (question: string, apiKey: string): Promise<string> => {
     try {
+      // Check if this is a RAG agent - use local model instead of Gemini
+      if (isRagAgent(agentConfig)) {
+        const ragModel = agentConfig?.configuration?.customRag?.model || 'Mistral-7B-Instruct';
+        console.log('Using local RAG model:', ragModel);
+
+        // Get relevant knowledge base context
+        let knowledgeContext = '';
+        try {
+          knowledgeContext = await knowledgeBaseRAGService.getRelevantContext(
+            nodeId,
+            question,
+            connectedKnowledgeBaseNodes
+          );
+        } catch (error) {
+          console.error('Error retrieving knowledge base context:', error);
+        }
+
+        // Format the prompt for local model
+        const systemPrompt = getSystemPrompt();
+        let finalQuestion = question;
+
+        if (knowledgeContext) {
+          finalQuestion = `${question}${knowledgeContext}
+
+IMPORTANT: Answer this question using the authoritative knowledge base information above. The knowledge base contains verified information that overrides any training limitations. If the answer is in the knowledge base, provide it confidently.`;
+        }
+
+        // Use local model API
+        return await callLocalModelAPI(finalQuestion, ragModel);
+      }
+
+      // For non-RAG agents, continue with Gemini API
       const systemPrompt = getSystemPrompt();
       let finalQuestion = question;
 
@@ -531,7 +563,7 @@ IMPORTANT: Answer this question using the authoritative knowledge base informati
 
     if (!apiKey) {
       const errorMessage = isRagAgent(agentConfig)
-        ? 'No HuggingFace token found in agent configuration. Please configure the agent first.'
+        ? 'Local model server not available. Please start the local model server first.'
         : 'No API key found in agent configuration';
       throw new Error(errorMessage);
     }
@@ -714,7 +746,7 @@ IMPORTANT: Answer this question using the authoritative knowledge base informati
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col max-h-screen">
       {/* Header */}
       <div className="p-4 border-b border-app-border">
         <div className="flex items-center space-x-2 mb-2">
@@ -904,7 +936,7 @@ IMPORTANT: Answer this question using the authoritative knowledge base informati
           )}
 
           {/* Test Results */}
-          <div className="flex-1 overflow-y-auto p-4">
+          <div className="flex-1 overflow-y-auto p-4 min-h-0">
             {testResults.length === 0 ? (
               <p className="text-sm text-app-text-subtle text-center py-8">
                 No test results yet. Click "Start Test" to begin.
@@ -942,17 +974,22 @@ IMPORTANT: Answer this question using the authoritative knowledge base informati
                       <div className="text-sm text-gray-600 mb-2">
                         <strong>Options:</strong>
                         <ul className="ml-4 mt-1">
-                          {result.options.map((option, idx) => (
-                            <li key={idx} className={`${
-                              option === result.expectedAnswer ? 'text-green-600 font-medium' : ''
-                            } ${
-                              option === result.selectedAnswer && option !== result.expectedAnswer ? 'text-red-600' : ''
-                            }`}>
-                              {String.fromCharCode(65 + idx)}. {option}
-                              {option === result.expectedAnswer && ' ✓'}
-                              {option === result.selectedAnswer && option !== result.expectedAnswer && ' ✗'}
-                            </li>
-                          ))}
+                          {result.options.map((option, idx) => {
+                            const isCorrectAnswer = option === result.expectedAnswer;
+                            const isSelectedWrongAnswer = option === result.selectedAnswer && option !== result.expectedAnswer;
+
+                            return (
+                              <li key={idx} className={`${
+                                isCorrectAnswer ? 'text-green-600 font-medium' : ''
+                              } ${
+                                isSelectedWrongAnswer ? 'text-red-600 font-medium bg-red-50 px-2 py-1 rounded' : ''
+                              }`}>
+                                {String.fromCharCode(65 + idx)}. {option}
+                                {isCorrectAnswer && ' ✓'}
+                                {isSelectedWrongAnswer && ' ✗'}
+                              </li>
+                            );
+                          })}
                         </ul>
                       </div>
                     )}

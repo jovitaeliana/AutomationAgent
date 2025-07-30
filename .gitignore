@@ -73,3 +73,18 @@ mistral.gguf
 llama.gguf
 tinyllama.gguf
 openhermes.gguf
+
+# Python virtual environment
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Local model files and directories
+models/
+*.gguf
+
+# Local model server
+local_model_server.log

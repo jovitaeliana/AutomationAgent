@@ -127,8 +127,6 @@ const AdvancedSearchConfigFields: React.FC<{
 
 // Custom RAG Configuration Fields component
 const CustomRAGConfigFields: React.FC<{
-  huggingFaceApiKey: string;
-  onHuggingFaceApiKeyChange: (value: string) => void;
   ragModel: string;
   onRagModelChange: (value: string) => void;
   chunkingStrategy: string;
@@ -146,7 +144,6 @@ const CustomRAGConfigFields: React.FC<{
   uploadedDocuments: File[];
   onUploadedDocumentsChange: (files: File[]) => void;
 }> = ({
-  huggingFaceApiKey, onHuggingFaceApiKeyChange,
   ragModel, onRagModelChange,
   chunkingStrategy, onChunkingStrategyChange,
   chunkSize, onChunkSizeChange,
@@ -157,24 +154,15 @@ const CustomRAGConfigFields: React.FC<{
   uploadedDocuments, onUploadedDocumentsChange
 }) => (
   <div className="space-y-6">
-    {/* Hugging Face API Key */}
-    <InputField
-      label="Hugging Face API Key *"
-      placeholder="Enter your Hugging Face API key"
-      value={huggingFaceApiKey}
-      onChange={onHuggingFaceApiKeyChange}
-      type="password"
-    />
-
-    {/* API Key Info */}
-    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-      <h4 className="font-medium text-blue-900 mb-1 text-sm">Getting your Hugging Face API Key:</h4>
-      <ul className="text-xs text-blue-800 space-y-1">
-        <li>• Visit <a href="https://huggingface.co/settings/tokens" target="_blank" rel="noopener noreferrer" className="underline">huggingface.co/settings/tokens</a></li>
-        <li>• Create a new token with "Read" permissions</li>
-        <li>• Copy and paste the token above</li>
-        <li>• This enables access to open-source models for your RAG system</li>
-      </ul>
+    {/* Local Model Information */}
+    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+      <h4 className="font-medium text-green-900 mb-2 text-sm">🚀 Local Model Setup</h4>
+      <div className="text-xs text-green-800 space-y-1">
+        <p><strong>No API keys required!</strong> This RAG agent uses local GGUF models with GPU acceleration.</p>
+        <p>• Models run locally on your machine for privacy and cost efficiency</p>
+        <p>• Make sure your local model server is running on port 8000</p>
+        <p>• Run <code className="bg-green-100 px-1 rounded">./start_local_models.sh</code> to start the server</p>
+      </div>
     </div>
 
     {/* Document Upload */}
@@ -355,8 +343,8 @@ const CustomRAGConfigFields: React.FC<{
         <li>• Documents are chunked using your selected strategy and size</li>
         <li>• Text chunks are converted to embeddings using the selected model</li>
         <li>• When queried, the most relevant chunks are retrieved based on similarity</li>
-        <li>• The RAG model (via Hugging Face API) generates responses using the retrieved context</li>
-        <li>• All models are open-source and run through Hugging Face's inference API</li>
+        <li>• The local RAG model generates responses using the retrieved context</li>
+        <li>• All processing happens locally with GPU acceleration for privacy and speed</li>
       </ul>
     </div>
   </div>
@@ -375,6 +363,49 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
 
   // Toast notifications
   const { showSuccess, showError } = useToast();
+
+  // Helper function to read file content
+  const readFileContent = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target?.result as string;
+        resolve(content);
+      };
+      reader.onerror = () => reject(new Error(`Failed to read file: ${file.name}`));
+      reader.readAsText(file);
+    });
+  };
+
+  // Helper function to process uploaded documents and return their content
+  const processUploadedDocuments = async (): Promise<Array<{
+    name: string;
+    content: string;
+    type: string;
+    size: number;
+    uploadedAt: string;
+  }>> => {
+    const processedDocuments = [];
+
+    for (const file of uploadedDocuments) {
+      try {
+        const content = await readFileContent(file);
+
+        processedDocuments.push({
+          name: file.name,
+          content: content,
+          type: file.type || 'text/plain',
+          size: file.size,
+          uploadedAt: new Date().toISOString()
+        });
+      } catch (error) {
+        console.error(`Failed to process file ${file.name}:`, error);
+        showError('Document Processing Error', `Failed to process file: ${file.name}`);
+      }
+    }
+
+    return processedDocuments;
+  };
 
   // State for user selections and form inputs
   const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
@@ -402,7 +433,6 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
   const [filterCriteria, setFilterCriteria] = useState('');
 
   // Custom RAG configuration
-  const [huggingFaceApiKey, setHuggingFaceApiKey] = useState('');
   const [ragModel, setRagModel] = useState('Mistral-7B-Instruct');
   const [chunkingStrategy, setChunkingStrategy] = useState('SimpleNodeParser');
   const [chunkSize, setChunkSize] = useState('512');
@@ -516,11 +546,6 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
     // Validate custom RAG preset requirements
     const selectedPresetData = presets.find(p => p.id === selectedPreset);
     if (selectedPresetData && (selectedPresetData.title.toLowerCase().includes('rag') || selectedPresetData.id.toLowerCase().includes('rag'))) {
-      if (!huggingFaceApiKey.trim()) {
-        setSaveStatus('Hugging Face API key is required for RAG model functionality');
-        setTimeout(() => setSaveStatus(''), 3000);
-        return;
-      }
       if (uploadedDocuments.length === 0) {
         setSaveStatus('Please upload at least one document for the RAG model');
         setTimeout(() => setSaveStatus(''), 3000);
@@ -572,8 +597,10 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
 - Max Results: ${maxResults}`
         };
       } else if (isRagPreset) {
+        // Process uploaded documents to get their content
+        const processedDocuments = await processUploadedDocuments();
+
         configuration.customRag = {
-          huggingFaceApiKey,
           model: ragModel,
           chunkingStrategy,
           chunkSize: parseInt(chunkSize),
@@ -581,12 +608,7 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
           chunkUnit,
           embeddingModel,
           topKResults,
-          documents: uploadedDocuments.map(file => ({
-            name: file.name,
-            size: file.size,
-            type: file.type,
-            lastModified: file.lastModified
-          }))
+          documents: processedDocuments
         };
       } else if (selectedPreset === 'custom') {
         try {
@@ -609,8 +631,12 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
         configuration
       });
 
-      console.log('Agent saved successfully:', savedAgent);
-      showSuccess('Configuration Saved', `Agent "${agentName}" has been created successfully!`);
+      // Show success message with document count for RAG agents
+      if (isRagPreset && uploadedDocuments.length > 0) {
+        showSuccess('Configuration Saved', `Agent "${agentName}" created with ${uploadedDocuments.length} documents processed!`);
+      } else {
+        showSuccess('Configuration Saved', `Agent "${agentName}" has been created successfully!`);
+      }
 
       // Refresh the agents list
       const updatedAgents = await agentService.getAll();
@@ -693,7 +719,6 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
       />;
     } else if (isRagPreset) {
       return <CustomRAGConfigFields
-        huggingFaceApiKey={huggingFaceApiKey} onHuggingFaceApiKeyChange={setHuggingFaceApiKey}
         ragModel={ragModel} onRagModelChange={setRagModel}
         chunkingStrategy={chunkingStrategy} onChunkingStrategyChange={setChunkingStrategy}
         chunkSize={chunkSize} onChunkSizeChange={setChunkSize}

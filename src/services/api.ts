@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { localModelApi } from './localModelApi';
 import type { Dataset, FlowNode, FlowConnection, Preset, AvailableNode, Automation, RagModel, Agent, KnowledgeBase, AgentKnowledgeBase } from '../lib/supabase';
 
 export const datasetService = {
@@ -847,5 +848,21 @@ export const weatherService = {
     }
 
     return formattedData;
+  }
+};
+
+// Function to call local model API for RAG agents
+export const callLocalModelAPI = async (prompt: string, model: string): Promise<string> => {
+  try {
+    const response = await localModelApi.generateRagResponse(
+      model,
+      prompt,
+      '', // No additional context needed as it's already in the prompt
+      'You are a helpful AI assistant. Provide accurate and helpful responses based on the given information.'
+    );
+    return response;
+  } catch (error) {
+    console.error('Local model API error:', error);
+    throw new Error(`Local model API error: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 };

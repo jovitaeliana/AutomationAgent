@@ -1,18 +1,64 @@
-# Automation Platform
+# AutomationAgent
 
-A modern, enterprise-grade web application for building, deploying, and managing intelligent automations, RAG (Retrieval-Augmented Generation) pipelines, and AI-powered workflows. Built with React 19, TypeScript, and Tailwind CSS v4, this platform provides an intuitive interface for creating sophisticated automation solutions.
+A modern web application for creating and managing AI agents with search, weather, and RAG (Retrieval-Augmented Generation) capabilities.
 
-## Overview
+## First Setup
 
-The Automation Platform is a comprehensive solution that empowers users to create and manage various types of intelligent automations without extensive technical knowledge. The platform features a drag-and-drop flow builder, preset configurations for common automation types, dataset testing capabilities, and a flexible architecture that supports everything from simple API integrations to complex RAG-based AI systems.
+### 1. Install Dependencies
+```bash
+npm install
+```
 
-Key capabilities include:
-- **Visual Flow Builder**: Drag-and-drop interface for creating automation workflows
-- **RAG Pipeline Creation**: Build knowledge retrieval systems with document Q&A capabilities
-- **Agent Configuration**: Set up automated agents with customizable presets (Weather API, Google Search, Custom)
-- **Dataset Testing**: Upload and validate datasets against existing automations
-- **Project Management**: Organize and track automation projects with real-time status updates
-- **Multi-template UI Generation**: Choose from chatbot, avatar, or web interface templates
+### 2. Environment Configuration
+Create a `.env` file in the root directory:
+```env
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+VITE_GEMINI_API_KEY=your_gemini_api_key
+```
+
+### 3. Local Models Setup (for RAG agents)
+```bash
+# Run the automated setup
+./setup-ubuntu.sh
+
+# Copy your .gguf model files to models/ directory
+mkdir -p models/
+cp /path/to/your/mistral.gguf models/
+cp /path/to/your/llama.gguf models/
+cp /path/to/your/tinyllama.gguf models/
+cp /path/to/your/openhermes.gguf models/
+
+# Start the local model server
+./start_local_models.sh
+```
+
+### 4. Start the Application
+```bash
+npm run dev
+```
+
+Open your browser and navigate to `http://localhost:5173`
+
+## What You Can Do
+
+- **Create Agents**: Build search, weather, or RAG agents
+- **Test with Datasets**: Upload test files and run automated testing
+- **Interactive Chat**: Test agents in real-time conversations
+- **Knowledge Bases**: Upload documents for RAG agents
+- **Visual Flows**: Create agent workflows with drag-and-drop interface
+
+## Agent Types
+
+- **Search Agents**: Real-time web search with Gemini API
+- **Weather Agents**: Weather data with OpenWeather + Gemini APIs
+- **RAG Agents**: Local model processing with uploaded documents (no API keys needed)
+
+## Need Help?
+
+- Check `LOCAL_MODELS_README.md` for detailed local model setup
+- RAG agents use local GGUF models (no HuggingFace API key required)
+- Other agent types need their respective API keys configured
 
 ## Tech Stack
 

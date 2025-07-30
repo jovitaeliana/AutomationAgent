@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronLeft, Send, RotateCcw, Bot, User } from 'lucide-react';
 import { knowledgeBaseRAGService, weatherService } from '../services/api';
+import { localModelApi } from '../services/localModelApi';
 import type { Agent } from '../lib/supabase';
 import { isRagAgent } from '../utils/agentUtils';
 
@@ -56,9 +57,9 @@ const GeminiChatPanel: React.FC<GeminiChatPanelProps> = ({
   const getApiKey = (): string | null => {
     if (!agentConfig?.configuration) return null;
 
-    // For RAG agents, use Gemini API key from environment (prototype behavior)
+    // For RAG agents, no API key needed (uses local models)
     if (isRagAgent(agentConfig)) {
-      return import.meta.env.VITE_GEMINI_API_KEY || null;
+      return 'local-model'; // Return a placeholder to indicate local model usage
     }
 
     // For weather agents, use the weather-specific Gemini API key
@@ -276,14 +277,92 @@ const GeminiChatPanel: React.FC<GeminiChatPanelProps> = ({
     return searchIndicators.some(pattern => pattern.test(lowerMessage));
   };
 
+  // Helper function to get RAG agent knowledge base context
+  const getRagAgentContext = async (query: string): Promise<string> => {
+    if (!isRagAgent(agentConfig) || !agentConfig?.configuration?.customRag?.documents) {
+      return '';
+    }
+
+    try {
+      const documents = agentConfig.configuration.customRag.documents;
+
+      if (!documents || documents.length === 0) {
+        return '';
+      }
+
+      // Simple keyword-based relevance scoring
+      const queryWords = query.toLowerCase()
+        .replace(/[^\w\s]/g, ' ')
+        .split(/\s+/)
+        .filter(word => word.length > 2);
+
+      let relevantContent = '';
+      for (const doc of documents) {
+        const content = doc.content.toLowerCase();
+        let hasRelevance = false;
+
+        // Check if any query words appear in the content
+        for (const word of queryWords) {
+          if (content.includes(word)) {
+            hasRelevance = true;
+            break;
+          }
+        }
+
+        if (hasRelevance || queryWords.length <= 2) {
+          relevantContent += `\n\n--- From ${doc.name} ---\n${doc.content}`;
+        }
+      }
+
+      return relevantContent;
+    } catch (error) {
+      console.error('Error retrieving RAG agent context:', error);
+      return '';
+    }
+  };
+
   const callGeminiAPI = async (userMessage: string, conversationHistory: ChatMessage[]): Promise<string> => {
+    // Check if this is a RAG agent - use local model instead
+    if (isRagAgent(agentConfig)) {
+      try {
+        // Get relevant knowledge base context for RAG agent
+        const knowledgeContext = await getRagAgentContext(userMessage);
+
+        // Get the model from configuration
+        const ragModel = agentConfig?.configuration?.customRag?.model || 'Mistral-7B-Instruct';
+
+        // Prepare the prompt with context
+        let finalMessage = userMessage;
+        if (knowledgeContext) {
+          finalMessage = `${userMessage}
+
+Context from knowledge base:${knowledgeContext}
+
+Please answer the question using the provided context when relevant.`;
+        }
+
+        // Use local model API
+        const response = await localModelApi.generateChatCompletion({
+          model: ragModel,
+          messages: [
+            { role: 'user', content: finalMessage }
+          ],
+          temperature: 0.7,
+          max_tokens: 1024
+        });
+
+        return response;
+      } catch (error) {
+        console.error('Local model API error:', error);
+        throw new Error(`Local model API error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    }
+
+    // For non-RAG agents, continue with Gemini API
     const apiKey = getApiKey();
 
     if (!apiKey) {
-      const errorMessage = isRagAgent(agentConfig)
-        ? 'No HuggingFace token found in agent configuration. Please configure the agent first.'
-        : 'No API key found in agent configuration. Please configure the agent with a Gemini API key.';
-      throw new Error(errorMessage);
+      throw new Error('No API key found in agent configuration. Please configure the agent with a Gemini API key.');
     }
 
     const systemPrompt = getSystemPrompt();
@@ -577,7 +656,7 @@ IMPORTANT: Answer this question using the authoritative knowledge base informati
           >
             <ChevronLeft size={20} />
           </button>
-          <h3 className="text-lg font-semibold text-app-text">Chat with Gemini</h3>
+          <h3 className="text-lg font-semibold text-app-text">Chat with Agent</h3>
         </div>
         <div className="flex items-center justify-between">
           <div className="flex flex-col">
@@ -605,7 +684,7 @@ IMPORTANT: Answer this question using the authoritative knowledge base informati
         <div className="p-4 bg-red-50 border-b border-red-200">
           <div className="text-sm text-red-600">
             ⚠️ {isRagAgent(agentConfig)
-              ? 'No HuggingFace token found in agent configuration. Please configure the agent first.'
+              ? 'Local model server not available. Please start the local model server first.'
               : 'No Gemini API key found in agent configuration. Please configure the agent first.'
             }
           </div>

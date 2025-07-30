@@ -64,7 +64,6 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
   const [limitations, setLimitations] = useState('');
   
   // State for RAG configuration fields
-  const [huggingFaceApiKey, setHuggingFaceApiKey] = useState('');
   const [ragModel, setRagModel] = useState('Mistral-7B-Instruct');
   const [chunkingStrategy, setChunkingStrategy] = useState('SimpleNodeParser');
   const [chunkSize, setChunkSize] = useState('512');
@@ -136,7 +135,6 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
     }
     // Check if it's a direct node configuration object with customRag
     else if (config.customRag) {
-      setHuggingFaceApiKey(config.customRag.huggingFaceApiKey || '');
       setRagModel(config.customRag.model || 'Mistral-7B-Instruct');
       setChunkingStrategy(config.customRag.chunkingStrategy || 'SimpleNodeParser');
       setChunkSize(config.customRag.chunkSize?.toString() || '512');
@@ -163,7 +161,6 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
     // Check if it's the new agent structure with type and agent properties for RAG
     else if (config.type === 'agent' && config.agent && config.agent.customRag) {
       const agentConfig = config.agent;
-      setHuggingFaceApiKey(agentConfig.customRag.huggingFaceApiKey || '');
       setRagModel(agentConfig.customRag.model || 'Mistral-7B-Instruct');
       setChunkingStrategy(agentConfig.customRag.chunkingStrategy || 'SimpleNodeParser');
       setChunkSize(agentConfig.customRag.chunkSize?.toString() || '512');
@@ -190,7 +187,6 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
     // Check if it's an Agent object with RAG configuration
     else if (config.configuration && config.configuration.customRag) {
       const agentConfig = config.configuration;
-      setHuggingFaceApiKey(agentConfig.customRag.huggingFaceApiKey || '');
       setRagModel(agentConfig.customRag.model || 'Mistral-7B-Instruct');
       setChunkingStrategy(agentConfig.customRag.chunkingStrategy || 'SimpleNodeParser');
       setChunkSize(agentConfig.customRag.chunkSize?.toString() || '512');
@@ -204,7 +200,6 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
     // Check if agent has nested configuration structure for RAG
     else if (config.type === 'agent' && config.agent && config.agent.configuration && config.agent.configuration.customRag) {
       const ragConfig = config.agent.configuration.customRag;
-      setHuggingFaceApiKey(ragConfig.huggingFaceApiKey || '');
       setRagModel(ragConfig.model || 'Mistral-7B-Instruct');
       setChunkingStrategy(ragConfig.chunkingStrategy || 'SimpleNodeParser');
       setChunkSize(ragConfig.chunkSize?.toString() || '512');
@@ -262,7 +257,6 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
     setLimitations('');
     
     // Reset RAG fields
-    setHuggingFaceApiKey('');
     setRagModel('Mistral-7B-Instruct');
     setChunkingStrategy('SimpleNodeParser');
     setChunkSize('512');
@@ -365,7 +359,6 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
         agentConfig = {
           preset: 'customRag',
           customRag: {
-            huggingFaceApiKey,
             model: ragModel,
             chunkingStrategy,
             chunkSize: parseInt(chunkSize),
@@ -569,18 +562,16 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
                     {isRagConfiguration(nodeConfig) ? (
                       // RAG Configuration
                       <>
-                        <h4 className="font-medium text-gray-900 mb-4">RAG Model Configuration</h4>
+                        <h4 className="font-medium text-gray-900 mb-4">Local RAG Model Configuration</h4>
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                          <h5 className="text-sm font-medium text-blue-800 mb-2">Local Model Setup</h5>
+                          <p className="text-sm text-blue-700">
+                            Using local GGUF models with GPU acceleration. Make sure your local model server is running on port 8000.
+                          </p>
+                        </div>
                         <div className="space-y-4">
-                          <InputField
-                            label="Hugging Face API Key *"
-                            placeholder="Enter your Hugging Face API key"
-                            value={huggingFaceApiKey}
-                            onChange={setHuggingFaceApiKey}
-                            type="password"
-                          />
-                          
                           <SelectField
-                            label="RAG Model"
+                            label="Local RAG Model"
                             options={[
                               'Mistral-7B-Instruct',
                               'Llama-3-8B-Instruct',

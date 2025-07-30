@@ -1,0 +1,29 @@
+# Core dependencies for local LLM inference
+torch>=2.1.0
+transformers>=4.35.0
+accelerate>=0.24.0
+bitsandbytes>=0.41.0
+
+# GGUF model support (will be installed separately with CUDA support)
+# llama-cpp-python>=0.2.20
+
+# GPU acceleration
+nvidia-ml-py3>=7.352.0
+
+# Text processing and embeddings
+sentence-transformers>=2.2.2
+numpy>=2.2.0
+scipy>=1.11.0
+
+# API and web framework
+fastapi>=0.104.0
+uvicorn>=0.24.0
+pydantic>=2.4.0
+
+# Utilities
+python-dotenv>=1.0.0
+requests>=2.31.0
+aiofiles>=23.2.0
+
+# Optional: For better performance
+optimum>=1.14.0
