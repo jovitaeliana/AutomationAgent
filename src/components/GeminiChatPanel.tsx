@@ -372,7 +372,7 @@ Please answer the question using the provided context when relevant.`;
     let knowledgeContext = '';
     try {
       knowledgeContext = await knowledgeBaseRAGService.getRelevantContext(
-        nodeId,
+        agentConfig?.id || nodeId,
         userMessage,
         connectedKnowledgeBaseNodes
       );

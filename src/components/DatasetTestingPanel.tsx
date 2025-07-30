@@ -295,7 +295,7 @@ const DatasetTestingPanel: React.FC<DatasetTestingPanelProps> = ({
         let knowledgeContext = '';
         try {
           knowledgeContext = await knowledgeBaseRAGService.getRelevantContext(
-            nodeId,
+            agentConfig.id,
             question,
             connectedKnowledgeBaseNodes
           );
@@ -325,7 +325,7 @@ IMPORTANT: Answer this question using the authoritative knowledge base informati
       let knowledgeContext = '';
       try {
         knowledgeContext = await knowledgeBaseRAGService.getRelevantContext(
-          nodeId,
+          agentConfig?.id || nodeId,
           question,
           connectedKnowledgeBaseNodes
         );

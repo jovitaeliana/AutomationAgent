@@ -662,19 +662,61 @@ export const agentKnowledgeBaseService = {
 export const knowledgeBaseRAGService = {
   async getRelevantContext(agentId: string, query: string, connectedKnowledgeBaseNodes: string[]): Promise<string> {
     try {
-      if (connectedKnowledgeBaseNodes.length === 0) {
-        return '';
+      let allDocuments = [];
+
+      // 1. Get documents from connected knowledge base nodes (existing approach)
+      if (connectedKnowledgeBaseNodes.length > 0) {
+        const allKnowledgeBases = await knowledgeBaseService.getAll();
+        const connectedKBs = allKnowledgeBases.filter(kb =>
+          kb.metadata &&
+          typeof kb.metadata === 'object' &&
+          connectedKnowledgeBaseNodes.includes(kb.metadata.nodeId)
+        );
+        allDocuments.push(...connectedKBs);
       }
 
-      // Get all knowledge bases and filter by connected node IDs
-      const allKnowledgeBases = await knowledgeBaseService.getAll();
-      const connectedKBs = allKnowledgeBases.filter(kb =>
-        kb.metadata &&
-        typeof kb.metadata === 'object' &&
-        connectedKnowledgeBaseNodes.includes(kb.metadata.nodeId)
-      );
+      // 2. Get documents stored directly in RAG agent configuration (new approach)
+      try {
+        const agent = await agentService.getById(agentId);
+        console.log(`[RAG] Looking for agent with ID: ${agentId}`, { found: !!agent });
+        
+        if (agent && agent.configuration && agent.configuration.customRag && agent.configuration.customRag.documents) {
+          console.log(`[RAG] Found ${agent.configuration.customRag.documents.length} documents in agent configuration`);
+          
+          const agentDocuments = agent.configuration.customRag.documents.map((doc: any) => ({
+            id: `agent-doc-${doc.name}`,
+            name: doc.name,
+            content: doc.content,
+            source_type: 'file',
+            file_name: doc.name,
+            file_type: doc.type,
+            file_size: doc.size,
+            created_at: doc.uploadedAt || new Date().toISOString(),
+            updated_at: doc.uploadedAt || new Date().toISOString(),
+            description: `Document from RAG agent configuration`,
+            metadata: { source: 'agent-config' }
+          }));
+          allDocuments.push(...agentDocuments);
+          console.log(`[RAG] Added ${agentDocuments.length} documents from agent config`);
+        } else {
+          console.log('[RAG] No documents found in agent configuration');
+          if (agent) {
+            console.log('[RAG] Agent configuration structure:', {
+              hasConfiguration: !!agent.configuration,
+              hasCustomRag: !!(agent.configuration && agent.configuration.customRag),
+              hasDocuments: !!(agent.configuration && agent.configuration.customRag && agent.configuration.customRag.documents),
+              documentsCount: agent.configuration?.customRag?.documents?.length || 0
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error retrieving agent configuration documents:', error);
+      }
 
-      if (connectedKBs.length === 0) {
+      console.log(`[RAG] Total documents available for processing: ${allDocuments.length}`);
+      
+      if (allDocuments.length === 0) {
+        console.log('[RAG] No documents found for context retrieval');
         return '';
       }
 
@@ -688,7 +730,7 @@ export const knowledgeBaseRAGService = {
       let relevantContent = '';
       let totalRelevantSources = 0;
 
-      for (const kb of connectedKBs) {
+      for (const kb of allDocuments) {
         const content = kb.content.toLowerCase();
         let relevanceScore = 0;
 
@@ -708,8 +750,8 @@ export const knowledgeBaseRAGService = {
           totalRelevantSources++;
 
           // Extract relevant sections - be more inclusive
-          const paragraphs = kb.content.split(/\n\s*\n/).filter(p => p.trim().length > 0);
-          const relevantParagraphs = paragraphs.filter(paragraph => {
+          const paragraphs = kb.content.split(/\n\s*\n/).filter((p: string) => p.trim().length > 0);
+          const relevantParagraphs = paragraphs.filter((paragraph: string) => {
             const lowerParagraph = paragraph.toLowerCase();
             return queryWords.some(word => lowerParagraph.includes(word));
           });
@@ -721,8 +763,8 @@ export const knowledgeBaseRAGService = {
             relevantContent += relevantParagraphs.slice(0, 5).join('\n\n');
           } else {
             // If no specific paragraphs match but we have relevance, include more content
-            const contentChunks = kb.content.split(/\n/).filter(line => line.trim().length > 0);
-            const relevantLines = contentChunks.filter(line => {
+            const contentChunks = kb.content.split(/\n/).filter((line: string) => line.trim().length > 0);
+            const relevantLines = contentChunks.filter((line: string) => {
               const lowerLine = line.toLowerCase();
               return queryWords.some(word => lowerLine.includes(word));
             });
@@ -841,7 +883,7 @@ export const weatherService = {
       formattedData += `\nForecast (next 24 hours):\n`;
       const next24Hours = forecastData.list.slice(0, 8); // 8 * 3 hours = 24 hours
 
-      next24Hours.forEach((item: any, index: number) => {
+      next24Hours.forEach((item: any) => {
         const time = new Date(item.dt * 1000).toLocaleTimeString();
         formattedData += `${time}: ${item.main.temp}°, ${item.weather[0].description}\n`;
       });
