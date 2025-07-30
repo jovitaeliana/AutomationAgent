@@ -815,12 +815,7 @@ export const weatherService = {
     ];
 
     const lowerQuery = query.toLowerCase();
-    const isWeatherRelated = weatherKeywords.some(keyword => lowerQuery.includes(keyword));
-
-    // Add debug logging
-    console.log('Weather query check:', { query, isWeatherRelated });
-
-    return isWeatherRelated;
+    return weatherKeywords.some(keyword => lowerQuery.includes(keyword));
   },
 
   // Format weather data for Gemini processing

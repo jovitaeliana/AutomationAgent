@@ -78,6 +78,10 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
 
   const [testingNodeId, setTestingNodeId] = useState<string | null>(null);
   const [testMode, setTestMode] = useState<'dataset' | 'chat' | null>(null);
+
+  // Drag line state for visual connection feedback
+  const [dragLine, setDragLine] = useState<{ from: { x: number; y: number }; to: { x: number; y: number } } | null>(null);
+  const [isDraggingConnection, setIsDraggingConnection] = useState(false);
   const [isTestPanelCollapsed, setIsTestPanelCollapsed] = useState(false);
   const [testPanelWidth, setTestPanelWidth] = useState(400);
 
@@ -198,7 +202,7 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
     }
   }, []);
 
-  // Handle mouse move for panning
+  // Handle mouse move for panning and drag line
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (isPanning) {
       const deltaX = e.clientX - lastPanPoint.x;
@@ -209,12 +213,27 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
       }));
       setLastPanPoint({ x: e.clientX, y: e.clientY });
     }
-  }, [isPanning, lastPanPoint]);
 
-  // Handle mouse up for panning
+    // Update drag line position when dragging a connection
+    if (isDraggingConnection && dragLine && canvasRef.current) {
+      const canvasRect = canvasRef.current.getBoundingClientRect();
+      setDragLine(prev => prev ? {
+        ...prev,
+        to: { x: (e.clientX - canvasRect.left - pan.x) / zoom, y: (e.clientY - canvasRect.top - pan.y) / zoom }
+      } : null);
+    }
+  }, [isPanning, lastPanPoint, isDraggingConnection, dragLine]);
+
+  // Handle mouse up for panning and drag line
   const handleMouseUp = useCallback(() => {
     setIsPanning(false);
-  }, []);
+    // Clear drag line if mouse up happens outside a port
+    if (isDraggingConnection) {
+      setIsDraggingConnection(false);
+      setDragLine(null);
+      setLinkingNodeId(null);
+    }
+  }, [isDraggingConnection]);
 
   // Reset zoom and pan
   const resetView = useCallback(() => {
@@ -353,7 +372,7 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
       const newNode: FlowNodeData = {
         id: nodeId,
         title: `🤖 ${agent.name}`,
-        type: `Agent: ${agent.configuration?.preset || 'Custom'}`,
+        type: `Agent type: ${agent.configuration?.preset || 'Custom'}`,
         position: pendingAgentNodeData.position,
       };
       
@@ -568,16 +587,44 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
   const handlePortMouseDown = useCallback((e: React.MouseEvent, fromNode: string) => {
     e.stopPropagation();
     setLinkingNodeId(fromNode);
-  }, []);
+    setIsDraggingConnection(true);
+
+    // Get the starting position for the drag line
+    const fromNodeElement = nodes.find(n => n.id === fromNode);
+    if (fromNodeElement && canvasRef.current) {
+      const canvasRect = canvasRef.current.getBoundingClientRect();
+      const nodeWidth = 192; // w-48 = 192px
+      const portOffset = 6; // ConnectionPort is 12px wide (w-3 h-3), translated 50% right = 6px
+      
+      // Get actual node height dynamically
+      const nodeElement = document.getElementById(fromNode);
+      const nodeHeight = nodeElement ? nodeElement.offsetHeight : 80; // fallback to estimated height
+      
+      // Coordinates should be in canvas space (not screen space) since the drag line is inside the transformed SVG
+      const startX = fromNodeElement.position.x + nodeWidth + portOffset;
+      const startY = fromNodeElement.position.y + nodeHeight / 2;
+
+      setDragLine({
+        from: { x: startX, y: startY },
+        to: { x: (e.clientX - canvasRect.left - pan.x) / zoom, y: (e.clientY - canvasRect.top - pan.y) / zoom }
+      });
+    }
+  }, [nodes, zoom, pan]);
 
   // Handle connections using Supabase
   const handlePortMouseUp = useCallback(async (e: React.MouseEvent, toNode: string) => {
     e.stopPropagation();
+    
+    // Clear drag state immediately
+    setLinkingNodeId(null);
+    setIsDraggingConnection(false);
+    setDragLine(null);
+    
     if (linkingNodeId && linkingNodeId !== toNode) {
       const newConnection: [string, string] = [linkingNodeId, toNode];
       const newConnections: [string, string][] = [...connections, newConnection];
       setConnections(newConnections);
-      
+
       // Save connections to Supabase
       try {
         await flowService.updateConnections(newConnections);
@@ -586,7 +633,6 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
         console.error('Error saving connections:', error);
       }
     }
-    setLinkingNodeId(null);
   }, [linkingNodeId, connections]);
 
   // Enhanced configuration change handler with persistence
@@ -682,7 +728,12 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
             >
               <BackButtonIcon />
             </button>
-            <button className="bg-primary text-white font-semibold py-2 px-4 rounded-lg hover:bg-primary-hover">Create Flow</button>
+            <button
+              onClick={() => onNavigate('choice')}
+              className="bg-primary text-white font-semibold py-2 px-4 rounded-lg hover:bg-primary-hover"
+            >
+              Create Flow
+            </button>
           </div>
         </header>
         
@@ -756,6 +807,17 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
                     />
                   );
                 })}
+
+                {/* Drag line for visual feedback when connecting nodes */}
+                {dragLine && (
+                  <path
+                    d={`M ${dragLine.from.x} ${dragLine.from.y} C ${dragLine.from.x + 60} ${dragLine.from.y}, ${dragLine.to.x - 60} ${dragLine.to.y}, ${dragLine.to.x} ${dragLine.to.y}`}
+                    stroke="#CBD5E1"
+                    strokeWidth="2"
+                    fill="none"
+                    opacity="0.8"
+                  />
+                )}
               </svg>
               
               {nodes.map(node => (
@@ -782,7 +844,7 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
             </div>
             
             {/* Zoom/Pan Instructions */}
-            <div className="absolute bottom-4 left-4 bg-black bg-opacity-70 text-white text-xs px-3 py-2 rounded-lg">
+            <div className="absolute top-4 left-4 bg-black bg-opacity-70 text-white text-xs px-3 py-2 rounded-lg">
               <div>Ctrl/Cmd + Scroll: Zoom</div>
               <div>Alt + Drag or Middle Click: Pan</div>
             </div>

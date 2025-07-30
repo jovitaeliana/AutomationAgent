@@ -1,7 +1,14 @@
 import React, { useState } from 'react';
 import StepIndicator from '../components/StepIndicator';
 import TemplateSelectionCard from '../components/TemplateSelectionCard';
-import { ChatbotIcon, AvatarIcon, WebsiteIcon } from '../components/Icons';
+import { ChatbotIcon, AvatarIcon } from '../components/Icons';
+
+// Define the page names type
+type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'agent-creation';
+
+interface AppChoicePageProps {
+  onNavigate: (page: PageName) => void;
+}
 
 // Data for the template selection cards
 const templates = [
@@ -16,16 +23,10 @@ const templates = [
     icon: <AvatarIcon />,
     title: 'Avatar Interaction Template',
     description: 'Engage users with a talking avatar. Best for interactive storytelling or virtual assistants.'
-  },
-  {
-    id: 'website',
-    icon: <WebsiteIcon />,
-    title: 'Generate Website',
-    description: 'Dynamically create and populate a simple webpage based on user prompts or data inputs.'
   }
 ];
 
-const AppChoicePage: React.FC = () => {
+const AppChoicePage: React.FC<AppChoicePageProps> = ({ onNavigate }) => {
   // State to track which template is selected, defaulting to 'chatbot'
   const [selectedTemplate, setSelectedTemplate] = useState<string>('chatbot');
 
@@ -42,7 +43,10 @@ const AppChoicePage: React.FC = () => {
 
           {/* Right Column: Selections */}
           <div className="md:col-span-3">
-            <h2 className="text-2xl font-bold text-app-text mb-6">Choose an App Template</h2>
+            <h2 className="text-2xl font-bold text-app-text mb-2">Choose an App Template</h2>
+            <p className="text-app-text-subtle text-sm mb-6">
+              Choose a pre-built template to instantly create a user interface for your agent. Each template provides a different user experience.
+            </p>
             <div className="space-y-6">
               {templates.map((template) => (
                 <TemplateSelectionCard
@@ -58,7 +62,10 @@ const AppChoicePage: React.FC = () => {
 
         {/* Footer Actions */}
         <div className="mt-12 pt-6 border-t border-app-border flex justify-end items-center space-x-4">
-          <button className="px-6 py-2 bg-secondary text-app-text font-semibold rounded-lg hover:bg-secondary-hover transition-colors">
+          <button
+            onClick={() => onNavigate('agent-creation')}
+            className="px-6 py-2 bg-secondary text-app-text font-semibold rounded-lg hover:bg-secondary-hover transition-colors"
+          >
             Back
           </button>
           <a href="#" className="px-6 py-2 bg-primary text-white font-semibold rounded-lg hover:bg-primary-hover transition-colors">

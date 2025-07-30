@@ -1,0 +1,23 @@
+📦 Package ID: SG123TH
+- Origin: Singapore
+- Destination: Thailand
+- Current Location: Singapore Changi Sorting Facility
+- Status: In Transit – In Singapore
+- Estimated Delivery Time: 5 days
+- Shipping Cost: SGD 15.50
+
+📦 Package ID: SG456MY
+- Origin: Singapore
+- Destination: Malaysia
+- Current Location: Johor Bahru Customs
+- Status: Reached Destination Country – Pending Customs Clearance
+- Estimated Delivery Time: 3 days
+- Shipping Cost: Not specified
+
+📦 Package ID: SG789US
+- Origin: Singapore
+- Destination: USA
+- Current Location: In Transit – Over Pacific Ocean
+- Status: In Transit – Halfway
+- Estimated Delivery Time: 10 days
+- Shipping Cost: SGD 45.00

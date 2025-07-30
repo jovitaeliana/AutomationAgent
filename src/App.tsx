@@ -53,7 +53,7 @@ function App() {
       case 'configure':
         return <ConfigureAgentPage onNavigate={navigate} />;
       case 'choice':
-        return <AppChoicePage />;
+        return <AppChoicePage onNavigate={navigate} />;
       case 'dataset-testing':
         return <UploadTestingFilePage />;
       case 'upload-dataset':
@@ -69,7 +69,7 @@ function App() {
     <ToastProvider>
       <div>
         {/* Temporary navigation bar for easy testing */}
-        <nav className="p-2 bg-gray-800 text-white text-xs text-center sticky top-0 z-50">
+        {/* <nav className="p-2 bg-gray-800 text-white text-xs text-center sticky top-0 z-50">
           <span className="font-bold">Temp Nav:</span>
           <button onClick={() => navigate('home')} className="ml-4 underline opacity-80 hover:opacity-100">Home</button>
           <button onClick={() => navigate('configure')} className="ml-4 underline opacity-80 hover:opacity-100">Configure Agent</button>
@@ -77,7 +77,7 @@ function App() {
           <button onClick={() => navigate('dataset-testing')} className="ml-4 underline opacity-80 hover:opacity-100">Upload Test Files</button>
           <button onClick={() => navigate('upload-dataset')} className="ml-4 underline opacity-80 hover:opacity-100">Upload Dataset</button>
           <button onClick={() => navigate('agent-creation')} className="ml-4 underline opacity-80 hover:opacity-100">Agent Creation</button>
-        </nav>
+        </nav> */}
 
         {/* Render the active page */}
         {renderPage()}

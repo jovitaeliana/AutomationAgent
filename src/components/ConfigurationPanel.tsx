@@ -534,11 +534,21 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
                   <div><span className="font-medium">Title:</span> {selectedNode.title}</div>
                   <div>
                     <span className="font-medium">Type:</span> {
-                      selectedNode.type
-                        .split(':')
-                        .map(part => part.trim())
-                        .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-                        .join(': ')
+                      (() => {
+                        const type = selectedNode.type;
+                        // If it's an agent type, extract just the actual type (e.g., "Weather" from "Agent type: Weather")
+                        if (type.startsWith('Agent type:')) {
+                          return type.replace('Agent type:', '').trim();
+                        }
+                        // For other types, use the original formatting
+                        const formatted = type
+                          .split(':')
+                          .map(part => part.trim())
+                          .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+                          .join(': ');
+
+                        return formatted.charAt(0).toUpperCase() + formatted.slice(1);
+                      })()
                     }
                   </div>
                 </div>

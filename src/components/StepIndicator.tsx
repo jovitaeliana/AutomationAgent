@@ -20,13 +20,13 @@ interface StepIndicatorProps {
 const StepIndicator: React.FC<StepIndicatorProps> = ({ currentStep }) => {
   const steps = [
     { number: 1, title: '1. CREATE AGENT' },
-    { number: 2, title: '2. DEVELOP APP API' },
+    { number: 2, title: '2. CREATE FLOW' },
     { number: 3, title: '3. CREATE UI' },
   ];
 
   return (
     <div>
-      <h2 className="text-2xl font-bold text-app-text mb-6">Configure Agents</h2>
+      <h2 className="text-2xl font-bold text-app-text mb-6">Deploy Agents</h2>
       <div className="space-y-3">
         {steps.map(step => (
           <Step 
@@ -36,12 +36,7 @@ const StepIndicator: React.FC<StepIndicatorProps> = ({ currentStep }) => {
           />
         ))}
       </div>
-      <div className="mt-8 pt-6 border-t border-app-border">
-        <h3 className="text-lg font-semibold text-app-text mb-2">Select Your UI Template</h3>
-        <p className="text-app-text-subtle text-sm">
-          Choose a pre-built template to instantly create a user interface for your agent. Each template provides a different user experience.
-        </p>
-      </div>
+
     </div>
   );
 };

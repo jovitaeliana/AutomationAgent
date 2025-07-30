@@ -301,19 +301,22 @@ const GeminiChatPanel: React.FC<GeminiChatPanelProps> = ({
       console.error('Error retrieving knowledge base context:', error);
     }
 
-    // Check if this is a weather agent and the query is weather-related
+    // Check if this is a weather agent first
     const isWeatherAgentCheck = isWeatherAgent();
     const hasWeatherCapabilityCheck = hasWeatherCapability();
-    const isWeatherQueryCheck = weatherService.isWeatherQuery(userMessage);
 
-    console.log('Weather agent checks:', {
-      isWeatherAgent: isWeatherAgentCheck,
-      hasWeatherCapability: hasWeatherCapabilityCheck,
-      isWeatherQuery: isWeatherQueryCheck,
-      userMessage
-    });
+    // Only check for weather queries if this is actually a weather agent
+    if (isWeatherAgentCheck && hasWeatherCapabilityCheck) {
+      const isWeatherQueryCheck = weatherService.isWeatherQuery(userMessage);
 
-    if (isWeatherAgentCheck && hasWeatherCapabilityCheck && isWeatherQueryCheck) {
+      console.log('Weather agent checks:', {
+        isWeatherAgent: isWeatherAgentCheck,
+        hasWeatherCapability: hasWeatherCapabilityCheck,
+        isWeatherQuery: isWeatherQueryCheck,
+        userMessage
+      });
+
+      if (isWeatherQueryCheck) {
       console.log('Processing weather query:', userMessage);
       try {
         const weatherData = await performWeatherQuery(userMessage);
@@ -353,6 +356,7 @@ Answer the user's weather question using the current weather data provided above
         finalUserMessage = `${userMessage}${knowledgeContext}
 
 Note: I attempted to get current weather information but encountered an error: ${weatherError instanceof Error ? weatherError.message : 'Weather data unavailable'}. ${knowledgeContext ? 'IMPORTANT: Use the authoritative knowledge base information above to answer the question. The knowledge base overrides any training limitations.' : 'I\'ll provide a response based on my general knowledge.'}`;
+      }
       }
     }
     // Check if we should perform a search

@@ -30,7 +30,6 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
   const [selectedAutomation, setSelectedAutomation] = useState('');
   
   const [datasetFile, setDatasetFile] = useState<File | null>(null);
-  const [testFile, setTestFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   
   const [generatedMCQ, setGeneratedMCQ] = useState<any[]>([]);
@@ -109,19 +108,7 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
     addAlert('info', `Dataset file "${file.name}" selected`);
   };
 
-  const handleTestFileSelect = (file: File) => {
-    // Validate file type
-    const allowedTypes = ['.csv', '.json', '.txt', '.xlsx', '.xls'];
-    const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
-    
-    if (!allowedTypes.includes(fileExtension)) {
-      addAlert('error', `Invalid file type. Please select: ${allowedTypes.join(', ')}`);
-      return;
-    }
-    
-    setTestFile(file);
-    addAlert('info', `Test file "${file.name}" selected`);
-  };
+
 
   const handleGenerateMCQ = async () => {
     if (!datasetFile) {
@@ -186,7 +173,6 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
       setDatasetName('');
       setDescription('');
       setDatasetFile(null);
-      setTestFile(null);
       setGeneratedMCQ([]);
       
       // Force FileUploadButton components to reset by changing the key
@@ -329,22 +315,7 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
                 </button>
               </div>
               
-              <div>
-                <h2 className="text-2xl font-semibold text-app-text mb-4">Upload Test File (Optional)</h2>
-                <p className="block text-sm font-medium text-app-text mb-2">
-                  Upload your test file for validation (CSV, JSON, TXT, etc.)
-                </p>
-                <FileUploadButton 
-                  key={`test-file-${formResetKey}`}
-                  id="test-file-upload" 
-                  onFileSelect={handleTestFileSelect}
-                />
-                {testFile && (
-                  <div className="mt-2 text-sm text-app-text-muted">
-                    Selected: {testFile.name} ({Math.round(testFile.size / 1024)}KB)
-                  </div>
-                )}
-              </div>
+
             </div>
             
             {/* Generated MCQ Panel on the Right */}
