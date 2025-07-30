@@ -6,16 +6,17 @@ import AppChoicePage from './pages/AppChoicePage';
 import UploadDatasetPage from './pages/UploadDatasetPage';
 import AgentCreationPage from './pages/AgentCreationPage';
 import UploadTestingFilePage from './pages/DatasetTestingPage';
+import DeploymentStatusPage from './pages/DeploymentStatusPage';
 import { ToastProvider } from './components/ToastContainer';
 
-type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'agent-creation';
+type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'agent-creation' | 'deployment-status';
 
 function App() {
   const [page, setPage] = useState<PageName>('home');
 
   useEffect(() => {
     const hash = window.location.hash.slice(1) as PageName;
-    const validPages: PageName[] = ['home', 'configure', 'choice', 'dataset-testing', 'upload-dataset', 'agent-creation'];
+    const validPages: PageName[] = ['home', 'configure', 'choice', 'dataset-testing', 'upload-dataset', 'agent-creation', 'deployment-status'];
     if (validPages.includes(hash)) {
       setPage(hash);
     }
@@ -25,7 +26,7 @@ function App() {
   useEffect(() => {
     const handlePopState = () => {
       const hash = window.location.hash.slice(1) as PageName;
-      const validPages: PageName[] = ['home', 'configure', 'choice', 'dataset-testing', 'upload-dataset', 'agent-creation'];
+      const validPages: PageName[] = ['home', 'configure', 'choice', 'dataset-testing', 'upload-dataset', 'agent-creation', 'deployment-status'];
       if (validPages.includes(hash)) {
         setPage(hash);
       } else {
@@ -60,6 +61,8 @@ function App() {
         return <UploadDatasetPage onNavigate={navigate} />;
       case 'agent-creation':
         return <AgentCreationPage onNavigate={navigate} />;
+      case 'deployment-status':
+        return <DeploymentStatusPage onNavigate={navigate} />;
       default:
         return <HomePage onNavigate={navigate} />;
     }

@@ -7,7 +7,7 @@ import { datasetService } from '../services/api';
 import type { Dataset } from '../lib/supabase';
 
 // Define the page names type
-type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'agent-creation';
+type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'agent-creation' | 'deployment-status';
 
 interface UploadDatasetPageProps {
   onNavigate: (page: PageName) => void;

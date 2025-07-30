@@ -5,7 +5,7 @@ import { AutomationIcon, RagIcon, FlowIcon, TestIcon } from '../components/Icons
 import RecentProjects from '../components/RecentProjects';
 
 // Define the page names type
-type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'agent-creation';
+type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'agent-creation' | 'deployment-status';
 
 interface HomePageProps {
   onNavigate: (page: PageName) => void;

@@ -68,3 +68,8 @@ Thumbs.db
 
 # Optional REPL history
 .node_repl_history
+
+mistral.gguf
+llama.gguf
+tinyllama.gguf
+openhermes.gguf

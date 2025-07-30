@@ -16,7 +16,7 @@ import { flowService, availableNodesService, nodeConfigService, knowledgeBaseSer
 import type { Dataset, Agent } from '../lib/supabase';
 
 // Define the page names type
-type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'agent-creation';
+type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'agent-creation' | 'deployment-status';
 
 interface AgentCreationPageProps {
   onNavigate: (page: PageName) => void;

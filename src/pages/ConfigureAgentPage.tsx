@@ -9,7 +9,7 @@ import { presetService, agentService } from '../services/api';
 import { useToast } from '../components/ToastContainer';
 import type { Preset, Agent } from '../lib/supabase';
 
-type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'agent-creation';
+type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'agent-creation' | 'deployment-status';
 
 interface ConfigureAgentPageProps {
   onNavigate: (page: PageName) => void;
