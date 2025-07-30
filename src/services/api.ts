@@ -118,7 +118,7 @@ ${fileContent.substring(0, 3000)}`
       const apiData = await response.json();
       const generatedText = apiData.candidates[0].content.parts[0].text;
       
-      let cleanedText = generatedText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      const cleanedText = generatedText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       const jsonMatch = cleanedText.match(/\[[\s\S]*\]/);
       
       if (!jsonMatch) {
@@ -662,7 +662,7 @@ export const agentKnowledgeBaseService = {
 export const knowledgeBaseRAGService = {
   async getRelevantContext(agentId: string, query: string, connectedKnowledgeBaseNodes: string[]): Promise<string> {
     try {
-      let allDocuments = [];
+      const allDocuments = [];
 
       // 1. Get documents from connected knowledge base nodes (existing approach)
       if (connectedKnowledgeBaseNodes.length > 0) {
@@ -675,8 +675,9 @@ export const knowledgeBaseRAGService = {
         allDocuments.push(...connectedKBs);
       }
 
-      // 2. Get documents stored directly in RAG agent configuration (new approach)
+      // 2. Get documents stored directly in RAG agent/node configuration (new approach)
       try {
+        // First try the agents table (for ConfigureAgentPage)
         const agent = await agentService.getById(agentId);
         console.log(`[RAG] Looking for agent with ID: ${agentId}`, { found: !!agent });
         
@@ -697,20 +698,42 @@ export const knowledgeBaseRAGService = {
             metadata: { source: 'agent-config' }
           }));
           allDocuments.push(...agentDocuments);
-          console.log(`[RAG] Added ${agentDocuments.length} documents from agent config`);
+          console.log(`[RAG] Added ${agentDocuments.length} documents from agent config table`);
         } else {
-          console.log('[RAG] No documents found in agent configuration');
-          if (agent) {
-            console.log('[RAG] Agent configuration structure:', {
-              hasConfiguration: !!agent.configuration,
-              hasCustomRag: !!(agent.configuration && agent.configuration.customRag),
-              hasDocuments: !!(agent.configuration && agent.configuration.customRag && agent.configuration.customRag.documents),
-              documentsCount: agent.configuration?.customRag?.documents?.length || 0
-            });
+          console.log('[RAG] No documents found in agent configuration table, checking node configurations...');
+          
+          // Try node_configurations table (for AgentCreationPage)
+          try {
+            const nodeConfig = await nodeConfigService.getByNodeId(agentId);
+            console.log(`[RAG] Looking for node config with ID: ${agentId}`, { found: !!nodeConfig });
+            
+            if (nodeConfig && nodeConfig.agent && nodeConfig.agent.customRag && nodeConfig.agent.customRag.documents) {
+              console.log(`[RAG] Found ${nodeConfig.agent.customRag.documents.length} documents in node configuration`);
+              
+              const nodeAgentDocuments = nodeConfig.agent.customRag.documents.map((doc: any) => ({
+                id: `node-agent-doc-${doc.name}`,
+                name: doc.name,
+                content: doc.content,
+                source_type: 'file',
+                file_name: doc.name,
+                file_type: doc.type,
+                file_size: doc.size,
+                created_at: doc.uploadedAt || new Date().toISOString(),
+                updated_at: doc.uploadedAt || new Date().toISOString(),
+                description: `Document from RAG node configuration`,
+                metadata: { source: 'node-config' }
+              }));
+              allDocuments.push(...nodeAgentDocuments);
+              console.log(`[RAG] Added ${nodeAgentDocuments.length} documents from node config table`);
+            } else {
+              console.log('[RAG] No documents found in node configuration either');
+            }
+          } catch (nodeConfigError) {
+            console.error('Error retrieving node configuration documents:', nodeConfigError);
           }
         }
       } catch (error) {
-        console.error('Error retrieving agent configuration documents:', error);
+        console.error('Error retrieving configuration documents:', error);
       }
 
       console.log(`[RAG] Total documents available for processing: ${allDocuments.length}`);
@@ -750,8 +773,8 @@ export const knowledgeBaseRAGService = {
           totalRelevantSources++;
 
           // Extract relevant sections - be more inclusive
-          const paragraphs = kb.content.split(/\n\s*\n/).filter((p: string) => p.trim().length > 0);
-          const relevantParagraphs = paragraphs.filter((paragraph: string) => {
+          const paragraphs = kb.content.split(/\n\s*\n/).filter(p => p.trim().length > 0);
+          const relevantParagraphs = paragraphs.filter(paragraph => {
             const lowerParagraph = paragraph.toLowerCase();
             return queryWords.some(word => lowerParagraph.includes(word));
           });
@@ -763,8 +786,8 @@ export const knowledgeBaseRAGService = {
             relevantContent += relevantParagraphs.slice(0, 5).join('\n\n');
           } else {
             // If no specific paragraphs match but we have relevance, include more content
-            const contentChunks = kb.content.split(/\n/).filter((line: string) => line.trim().length > 0);
-            const relevantLines = contentChunks.filter((line: string) => {
+            const contentChunks = kb.content.split(/\n/).filter(line => line.trim().length > 0);
+            const relevantLines = contentChunks.filter(line => {
               const lowerLine = line.toLowerCase();
               return queryWords.some(word => lowerLine.includes(word));
             });
@@ -883,7 +906,7 @@ export const weatherService = {
       formattedData += `\nForecast (next 24 hours):\n`;
       const next24Hours = forecastData.list.slice(0, 8); // 8 * 3 hours = 24 hours
 
-      next24Hours.forEach((item: any) => {
+      next24Hours.forEach((item: any, index: number) => {
         const time = new Date(item.dt * 1000).toLocaleTimeString();
         formattedData += `${time}: ${item.main.temp}°, ${item.weather[0].description}\n`;
       });

@@ -16,7 +16,7 @@ interface ConfigurationPanelProps {
   nodes: FlowNodeData[];
   onConfigChange: (config: any) => void;
   onClose: () => void;
-  onSave: () => void;
+  onSave: (config?: any) => void;
   initialWidth?: number;
   minWidth?: number;
   maxWidth?: number;
@@ -52,6 +52,10 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
   const [resultProcessing, setResultProcessing] = useState('Summarize with Gemini');
   const [customInstructions, setCustomInstructions] = useState('');
   const [filterCriteria, setFilterCriteria] = useState('');
+  
+  // Track if user has manually edited these fields
+  const [systemPromptEdited, setSystemPromptEdited] = useState(false);
+  const [limitationsEdited, setLimitationsEdited] = useState(false);
 
   // Weather configuration state
   const [weatherOpenWeatherApiKey, setWeatherOpenWeatherApiKey] = useState('');
@@ -62,6 +66,24 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
   const [weatherCustomInstructions, setWeatherCustomInstructions] = useState('');
   const [systemPrompt, setSystemPrompt] = useState('');
   const [limitations, setLimitations] = useState('');
+  
+  // Debug wrapper for setLimitations
+  const setLimitationsWithDebug = (value: string, isUserEdit = false) => {
+    console.log('📝 Setting limitations:', { from: limitations, to: value, isUserEdit, stack: new Error().stack?.split('\n')[2] });
+    setLimitations(value);
+    if (isUserEdit) {
+      setLimitationsEdited(true);
+    }
+  };
+  
+  // Debug wrapper for setSystemPrompt
+  const setSystemPromptWithDebug = (value: string, isUserEdit = false) => {
+    console.log('📝 Setting systemPrompt:', { from: systemPrompt, to: value, isUserEdit });
+    setSystemPrompt(value);
+    if (isUserEdit) {
+      setSystemPromptEdited(true);
+    }
+  };
   
   // State for RAG configuration fields
   const [ragModel, setRagModel] = useState('Mistral-7B-Instruct');
@@ -120,6 +142,8 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
       resetConfigurationForm();
       return;
     }
+    
+    console.log('📎 Loading configuration into form:', { config, systemPromptEdited, limitationsEdited });
 
     // Check if it's a direct node configuration object with search
     if (config.search) {
@@ -130,8 +154,8 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
       setResultProcessing(config.search.resultProcessing || 'Summarize with Gemini');
       setCustomInstructions(config.search.customInstructions || '');
       setFilterCriteria(config.search.filterCriteria || '');
-      setSystemPrompt(config.systemPrompt || '');
-      setLimitations(config.limitations || '');
+      if (!systemPromptEdited) setSystemPrompt(config.systemPrompt || '');
+      if (!limitationsEdited) setLimitationsWithDebug(config.limitations || '');
     }
     // Check if it's a direct node configuration object with customRag
     else if (config.customRag) {
@@ -142,8 +166,8 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
       setChunkUnit(config.customRag.chunkUnit || 'Sentences');
       setEmbeddingModel(config.customRag.embeddingModel || 'BAAI/bge-small-en');
       setTopKResults(config.customRag.topKResults || 10);
-      setSystemPrompt(config.systemPrompt || '');
-      setLimitations(config.limitations || '');
+      if (!systemPromptEdited) setSystemPrompt(config.systemPrompt || '');
+      if (!limitationsEdited) setLimitationsWithDebug(config.limitations || '');
     }
     // Check if it's the new agent structure with type and agent properties
     else if (config.type === 'agent' && config.agent && config.agent.search) {
@@ -155,8 +179,8 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
       setResultProcessing(agentConfig.search.resultProcessing || 'Summarize with Gemini');
       setCustomInstructions(agentConfig.search.customInstructions || '');
       setFilterCriteria(agentConfig.search.filterCriteria || '');
-      setSystemPrompt(agentConfig.systemPrompt || '');
-      setLimitations(agentConfig.limitations || '');
+      if (!systemPromptEdited) setSystemPrompt(agentConfig.systemPrompt || '');
+      if (!limitationsEdited) setLimitationsWithDebug(agentConfig.limitations || '');
     }
     // Check if it's the new agent structure with type and agent properties for RAG
     else if (config.type === 'agent' && config.agent && config.agent.customRag) {
@@ -168,8 +192,8 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
       setChunkUnit(agentConfig.customRag.chunkUnit || 'Sentences');
       setEmbeddingModel(agentConfig.customRag.embeddingModel || 'BAAI/bge-small-en');
       setTopKResults(agentConfig.customRag.topKResults || 10);
-      setSystemPrompt(agentConfig.systemPrompt || '');
-      setLimitations(agentConfig.limitations || '');
+      if (!systemPromptEdited) setSystemPrompt(agentConfig.systemPrompt || '');
+      if (!limitationsEdited) setLimitationsWithDebug(agentConfig.limitations || '');
     }
     // Check if it's an Agent object with configuration
     else if (config.configuration && config.configuration.search) {
@@ -181,8 +205,8 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
       setResultProcessing(agentConfig.search.resultProcessing || 'Summarize with Gemini');
       setCustomInstructions(agentConfig.search.customInstructions || '');
       setFilterCriteria(agentConfig.search.filterCriteria || '');
-      setSystemPrompt(agentConfig.systemPrompt || '');
-      setLimitations(agentConfig.limitations || '');
+      if (!systemPromptEdited) setSystemPrompt(agentConfig.systemPrompt || '');
+      if (!limitationsEdited) setLimitationsWithDebug(agentConfig.limitations || '');
     }
     // Check if it's an Agent object with RAG configuration
     else if (config.configuration && config.configuration.customRag) {
@@ -194,8 +218,8 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
       setChunkUnit(agentConfig.customRag.chunkUnit || 'Sentences');
       setEmbeddingModel(agentConfig.customRag.embeddingModel || 'BAAI/bge-small-en');
       setTopKResults(agentConfig.customRag.topKResults || 10);
-      setSystemPrompt(agentConfig.systemPrompt || '');
-      setLimitations(agentConfig.limitations || '');
+      if (!systemPromptEdited) setSystemPrompt(agentConfig.systemPrompt || '');
+      if (!limitationsEdited) setLimitationsWithDebug(agentConfig.limitations || '');
     }
     // Check if agent has nested configuration structure for RAG
     else if (config.type === 'agent' && config.agent && config.agent.configuration && config.agent.configuration.customRag) {
@@ -207,8 +231,8 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
       setChunkUnit(ragConfig.chunkUnit || 'Sentences');
       setEmbeddingModel(ragConfig.embeddingModel || 'BAAI/bge-small-en');
       setTopKResults(ragConfig.topKResults || 10);
-      setSystemPrompt(config.agent.configuration.systemPrompt || '');
-      setLimitations(config.agent.configuration.limitations || '');
+      if (!systemPromptEdited) setSystemPrompt(config.agent.configuration.systemPrompt || '');
+      if (!limitationsEdited) setLimitationsWithDebug(config.agent.configuration.limitations || '');
     }
     // Check if it's a weather configuration
     else if (config.configuration && config.configuration.weather) {
@@ -219,8 +243,8 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
       setWeatherUnits(weatherConfig.units || 'Celsius');
       setWeatherMaxResults(weatherConfig.maxResults?.toString() || '10');
       setWeatherCustomInstructions(weatherConfig.customInstructions || '');
-      setSystemPrompt(config.configuration.systemPrompt || '');
-      setLimitations(config.configuration.limitations || '');
+      if (!systemPromptEdited) setSystemPrompt(config.configuration.systemPrompt || '');
+      if (!limitationsEdited) setLimitationsWithDebug(config.configuration.limitations || '');
     }
     // Check if it's the new agent structure with weather
     else if (config.type === 'agent' && config.agent && config.agent.weather) {
@@ -231,13 +255,13 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
       setWeatherUnits(weatherConfig.units || 'Celsius');
       setWeatherMaxResults(weatherConfig.maxResults?.toString() || '10');
       setWeatherCustomInstructions(weatherConfig.customInstructions || '');
-      setSystemPrompt(config.agent.systemPrompt || '');
-      setLimitations(config.agent.limitations || '');
+      if (!systemPromptEdited) setSystemPrompt(config.agent.systemPrompt || '');
+      if (!limitationsEdited) setLimitationsWithDebug(config.agent.limitations || '');
     }
     // If it's just system prompt and limitations
     else if (config.systemPrompt !== undefined || config.limitations !== undefined) {
-      setSystemPrompt(config.systemPrompt || '');
-      setLimitations(config.limitations || '');
+      if (!systemPromptEdited) setSystemPrompt(config.systemPrompt || '');
+      if (!limitationsEdited) setLimitationsWithDebug(config.limitations || '');
     }
     else {
       resetConfigurationForm();
@@ -254,7 +278,7 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
     setCustomInstructions('');
     setFilterCriteria('');
     setSystemPrompt('');
-    setLimitations('');
+    setLimitationsWithDebug('');
     
     // Reset RAG fields
     setRagModel('Mistral-7B-Instruct');
@@ -334,6 +358,19 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
 
   const handleSave = async () => {
     try {
+      console.log('🔄 Starting configuration save...');
+      console.log('📋 Current form values:', {
+        systemPrompt: `"${systemPrompt}"`,
+        limitations: `"${limitations}"`,
+        ragModel,
+        serpApiKey: serpApiKey ? '[SET]' : '[NOT SET]',
+        geminiApiKey: geminiApiKey ? '[SET]' : '[NOT SET]'
+      });
+      
+      if (!limitations) {
+        console.warn('⚠️ ALERT: limitations field is empty!', { limitationsLength: limitations.length, limitationsType: typeof limitations });
+      }
+      
       // First, save knowledge base changes if any
       if (knowledgeBaseSaveFunction) {
         try {
@@ -430,11 +467,28 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
           agent: agentConfig
         };
       }
+      
+      console.log('📦 Final configuration to save:', JSON.stringify(updatedConfig, null, 2));
 
+      // Update local state first
       onConfigChange(updatedConfig);
+
+      // Pass the updated config directly to onSave to ensure it's saved correctly
+      if (typeof onSave === 'function') {
+        await onSave(updatedConfig);
+        showSuccess('Configuration Saved', 'Agent configuration has been saved successfully.');
+      } else {
+        showSuccess('Configuration Saved', 'Agent configuration has been updated.');
+      }
+    } else {
+      // For non-agent nodes, just call onSave normally
+      if (typeof onSave === 'function') {
+        await onSave();
+        showSuccess('Configuration Saved', 'Configuration has been saved successfully.');
+      } else {
+        showSuccess('Configuration Saved', 'Configuration has been updated.');
+      }
     }
-    onSave();
-    showSuccess('Configuration Saved', 'Agent configuration has been saved successfully.');
     } catch (error) {
       console.error('Error saving configuration:', error);
       showError('Save Failed', 'Failed to save configuration. Please try again.');
@@ -819,14 +873,18 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
                         label="System Prompt"
                         placeholder="Enter system instructions for the agent..."
                         value={systemPrompt}
-                        onChange={setSystemPrompt}
+                        onChange={(value) => {
+                          setSystemPromptWithDebug(value, true);
+                        }}
                         rows={4}
                       />
                       <TextareaField
                         label="Limitations"
                         placeholder="Specify any limitations or restrictions..."
                         value={limitations}
-                        onChange={setLimitations}
+                        onChange={(value) => {
+                          setLimitationsWithDebug(value, true);
+                        }}
                         rows={3}
                       />
                     </div>

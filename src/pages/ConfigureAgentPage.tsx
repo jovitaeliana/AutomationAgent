@@ -558,7 +558,7 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
 
     try {
       // Build configuration object based on selected preset
-      let configuration: any = {
+      const configuration: any = {
         preset: selectedPreset,
         systemPrompt,
         limitations,

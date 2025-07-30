@@ -1,9 +1,6 @@
 # Local Models Setup for RAG Agents
 
-This guide explains how to set up local GGUF models with GPU acceleration for RAG agents in the AutomationAgent application. Ensure your node version is at 18 or higher, and use the below commands to update if necessary:
-
-nvm install --lts
-nvm use --lts
+This guide explains how to set up local GGUF models with GPU acceleration for RAG agents in the AutomationAgent application.
 
 ## Overview
 

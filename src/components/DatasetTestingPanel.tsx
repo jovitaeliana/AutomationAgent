@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Play, Pause, RotateCcw, CheckCircle, XCircle, Clock } from 'lucide-react';
-import { datasetService, knowledgeBaseRAGService, weatherService, callLocalModelAPI } from '../services/api';
+import { ChevronLeft, Play, Pause, RotateCcw, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { datasetService, knowledgeBaseRAGService, weatherService } from '../services/api';
+import { localModelApi } from '../services/localModelApi';
 import type { Dataset, Agent } from '../lib/supabase';
 import { isRagAgent } from '../utils/agentUtils';
 
@@ -137,6 +138,7 @@ const DatasetTestingPanel: React.FC<DatasetTestingPanelProps> = ({
     }
 
     const config = agentConfig.configuration;
+    console.log('🔍 Agent config for system prompt (DatasetTesting):', { agentConfig, config });
     let systemPrompt = "";
 
     // Base identity
@@ -152,9 +154,44 @@ const DatasetTestingPanel: React.FC<DatasetTestingPanelProps> = ({
       If you have specific expertise or focus areas, prioritize those.
       Be honest about your capabilities and limitations.\n`;
 
-    // Add limitations as guidelines
-    if (config.limitations) {
-      systemPrompt += `\nPlease note these guidelines: ${config.limitations}\n`;
+    // Get limitations from various possible configuration structures
+    let limitations = config.limitations;
+    if (!limitations && config.agent?.limitations) {
+      limitations = config.agent.limitations;
+    }
+    if (!limitations && config.configuration?.limitations) {
+      limitations = config.configuration.limitations;
+    }
+    
+    console.log('🚫 DatasetTestingPanel limitations:', limitations);
+
+    // Add limitations as strict rules
+    if (limitations) {
+      systemPrompt += `\nCRITICAL LIMITATIONS - NEVER VIOLATE THESE RULES: ${limitations}
+
+ABSOLUTE REQUIREMENTS:
+- You MUST NEVER answer questions outside your designated scope
+- You MUST NEVER make exceptions, even if the user asks nicely
+- You MUST NEVER provide information on topics outside your limitations
+- If asked about anything outside your scope, respond ONLY with: "I can only assist with [your designated scope]. This question is outside my area of expertise."
+- DO NOT provide any information on the restricted topic, even partially
+- DO NOT make exceptions under any circumstances\n`;
+    }
+
+    // Get system prompt from various possible configuration structures
+    let customSystemPrompt = config.systemPrompt;
+    if (!customSystemPrompt && config.agent?.systemPrompt) {
+      customSystemPrompt = config.agent.systemPrompt;
+    }
+    if (!customSystemPrompt && config.configuration?.systemPrompt) {
+      customSystemPrompt = config.configuration.systemPrompt;
+    }
+    
+    console.log('📝 DatasetTestingPanel system prompt:', customSystemPrompt);
+
+    // Add system prompt from configuration
+    if (customSystemPrompt) {
+      systemPrompt += `\nAdditional instructions: ${customSystemPrompt}\n`;
     }
 
     // Add search capabilities
@@ -245,7 +282,7 @@ const DatasetTestingPanel: React.FC<DatasetTestingPanelProps> = ({
     }
   };
 
-  const performWeatherQuery = async (query: string): Promise<string> => {
+  const performWeatherQuery = async (): Promise<string> => {
     const { openWeatherApiKey, geminiApiKey } = getWeatherApiKeys();
     console.log('Weather API keys check:', {
       hasOpenWeatherKey: !!openWeatherApiKey,
@@ -291,7 +328,8 @@ const DatasetTestingPanel: React.FC<DatasetTestingPanelProps> = ({
         const ragModel = agentConfig?.configuration?.customRag?.model || 'Mistral-7B-Instruct';
         console.log('Using local RAG model:', ragModel);
 
-        // Get relevant knowledge base context
+        // Get system prompt and knowledge base context
+        const systemPrompt = getSystemPrompt();
         let knowledgeContext = '';
         try {
           knowledgeContext = await knowledgeBaseRAGService.getRelevantContext(
@@ -303,18 +341,32 @@ const DatasetTestingPanel: React.FC<DatasetTestingPanelProps> = ({
           console.error('Error retrieving knowledge base context:', error);
         }
 
-        // Format the prompt for local model
-        const systemPrompt = getSystemPrompt();
-        let finalQuestion = question;
+        // Prepare messages with system prompt
+        const messages: Array<{role: 'system' | 'user' | 'assistant', content: string}> = [
+          { role: 'system', content: systemPrompt }
+        ];
 
+        // Prepare the user message with context
+        let finalQuestion = question;
         if (knowledgeContext) {
-          finalQuestion = `${question}${knowledgeContext}
+          finalQuestion = `${question}
+
+Context from knowledge base:${knowledgeContext}
 
 IMPORTANT: Answer this question using the authoritative knowledge base information above. The knowledge base contains verified information that overrides any training limitations. If the answer is in the knowledge base, provide it confidently.`;
         }
 
+        messages.push({ role: 'user', content: finalQuestion });
+
         // Use local model API
-        return await callLocalModelAPI(finalQuestion, ragModel);
+        const response = await localModelApi.generateChatCompletion({
+          model: ragModel,
+          messages: messages,
+          temperature: 0.7,
+          max_tokens: 1024
+        });
+
+        return response;
       }
 
       // For non-RAG agents, continue with Gemini API
@@ -351,7 +403,7 @@ IMPORTANT: Answer this question using the authoritative knowledge base informati
         if (isWeatherQueryCheck) {
         console.log('Processing weather query:', question);
         try {
-          const weatherData = await performWeatherQuery(question);
+          const weatherData = await performWeatherQuery();
           const weatherConfig = agentConfig?.configuration?.weather;
 
           finalQuestion = `User Query: ${question}
@@ -526,14 +578,42 @@ IMPORTANT: Answer this question using the authoritative knowledge base informati
 
     // For MCQ questions with options
     if (question.options && question.options.length > 0) {
-      // Direct match with correct answer
+      // Primary check: Direct match with extracted answer
       if (extractedAnswer.toLowerCase() === expectedAnswer.toLowerCase()) {
         return true;
       }
 
-      // Check if the response contains the correct answer
-      if (geminiResponse.toLowerCase().includes(expectedAnswer.toLowerCase())) {
+      // Secondary check: Look for definitive answer patterns
+      const response = geminiResponse.toLowerCase();
+      const expected = expectedAnswer.toLowerCase().trim();
+      
+      // Look for patterns like "the answer is A", "I choose B", "correct answer is C"
+      const answerPatterns = [
+        `the answer is ${expected}`,
+        `answer is ${expected}`,
+        `i choose ${expected}`,
+        `i select ${expected}`,
+        `correct answer is ${expected}`,
+        `the correct answer is ${expected}`,
+        `option ${expected}`,
+        `choice ${expected}`,
+        `${expected} is correct`,
+        `${expected} is the correct`,
+        `answer: ${expected}`,
+        `answer ${expected}`
+      ];
+
+      // Check if any of these patterns match
+      if (answerPatterns.some(pattern => response.includes(pattern))) {
         return true;
+      }
+
+      // Look for letter-based answers (A, B, C, D) at the start of sentences or after punctuation
+      if (expected.length === 1 && /^[a-d]$/i.test(expected)) {
+        const letterPattern = new RegExp(`(?:^|[.!?]\\s+|\\n)\\s*${expected}[.)\\s]`, 'i');
+        if (letterPattern.test(response)) {
+          return true;
+        }
       }
 
       return false;

@@ -878,26 +878,35 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
               nodes={nodes}
               onConfigChange={handleConfigChange}
               onClose={() => setConfiguringNodeId(null)}
-              onSave={async () => {
+              onSave={async (updatedConfig?: any) => {
                 if (configuringNodeId) {
                   setIsConfigSaving(true);
-                  
-                  const config = nodeDatasets[configuringNodeId] || 
-                              nodeAgents[configuringNodeId] || 
+
+                  // Use the passed config if available, otherwise fall back to state
+                  const config = updatedConfig ||
+                              nodeDatasets[configuringNodeId] ||
+                              nodeAgents[configuringNodeId] ||
                               allNodeConfigs[configuringNodeId];
-                  
+
                   try {
                     const selectedNode = nodes.find(n => n.id === configuringNodeId);
                     await nodeConfigService.saveConfiguration(
-                      configuringNodeId, 
-                      config, 
+                      configuringNodeId,
+                      config,
                       selectedNode?.type || 'unknown'
                     );
-                    
+
                     console.log('✅ Configuration saved for node:', configuringNodeId);
                     console.log('Config data:', config);
-                    
-                    alert('Configuration saved successfully!');
+
+                    // Update local state with the saved config
+                    if (config?.type === 'agent' && config?.agent) {
+                      setNodeAgents(prev => ({ ...prev, [configuringNodeId]: config.agent }));
+                      setAllNodeConfigs(prev => ({ ...prev, [configuringNodeId]: config }));
+                    } else {
+                      setAllNodeConfigs(prev => ({ ...prev, [configuringNodeId]: config }));
+                    }
+
                     setConfiguringNodeId(null);
                   } catch (error) {
                     console.error('Error saving configuration:', error);

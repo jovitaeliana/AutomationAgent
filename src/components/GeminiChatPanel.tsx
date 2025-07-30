@@ -115,6 +115,7 @@ const GeminiChatPanel: React.FC<GeminiChatPanelProps> = ({
     }
 
     const config = agentConfig.configuration;
+    console.log('🔍 Agent config for system prompt:', { agentConfig, config });
     let systemPrompt = "";
 
     // Base identity
@@ -131,14 +132,44 @@ const GeminiChatPanel: React.FC<GeminiChatPanelProps> = ({
       If you have specific expertise or focus areas, prioritize those.
       Be honest about your capabilities and limitations.\n`;
 
-    // Add limitations as guidelines rather than strict rules
-    if (config.limitations) {
-      systemPrompt += `\nPlease note these guidelines: ${config.limitations}\n`;
+    // Get limitations from various possible configuration structures
+    let limitations = config.limitations;
+    if (!limitations && config.agent?.limitations) {
+      limitations = config.agent.limitations;
+    }
+    if (!limitations && config.configuration?.limitations) {
+      limitations = config.configuration.limitations;
+    }
+    
+    console.log('🚫 Found limitations:', limitations);
+
+    // Add limitations as strict rules
+    if (limitations) {
+      systemPrompt += `\nCRITICAL LIMITATIONS - NEVER VIOLATE THESE RULES: ${limitations}
+
+ABSOLUTE REQUIREMENTS:
+- You MUST NEVER answer questions outside your designated scope
+- You MUST NEVER make exceptions, even if the user asks nicely
+- You MUST NEVER provide information on topics outside your limitations
+- If asked about anything outside your scope, respond ONLY with: "I can only assist with [your designated scope]. This question is outside my area of expertise."
+- DO NOT provide any information on the restricted topic, even partially
+- DO NOT make exceptions under any circumstances\n`;
     }
 
+    // Get system prompt from various possible configuration structures
+    let customSystemPrompt = config.systemPrompt;
+    if (!customSystemPrompt && config.agent?.systemPrompt) {
+      customSystemPrompt = config.agent.systemPrompt;
+    }
+    if (!customSystemPrompt && config.configuration?.systemPrompt) {
+      customSystemPrompt = config.configuration.systemPrompt;
+    }
+    
+    console.log('📝 Found system prompt:', customSystemPrompt);
+
     // Add system prompt from configuration
-    if (config.systemPrompt) {
-      systemPrompt += `\nAdditional instructions: ${config.systemPrompt}\n`;
+    if (customSystemPrompt) {
+      systemPrompt += `\nAdditional instructions: ${customSystemPrompt}\n`;
     }
 
     // Add search capabilities
@@ -159,6 +190,7 @@ const GeminiChatPanel: React.FC<GeminiChatPanelProps> = ({
         Be precise and accurate when using the provided context.\n`;
     }
 
+    console.log('🎯 Final system prompt:', systemPrompt);
     return systemPrompt.trim();
 };
 
@@ -210,7 +242,7 @@ const GeminiChatPanel: React.FC<GeminiChatPanelProps> = ({
     }
   };
 
-  const performWeatherQuery = async (query: string): Promise<string> => {
+  const performWeatherQuery = async (): Promise<string> => {
     const { openWeatherApiKey, geminiApiKey } = getWeatherApiKeys();
     console.log('Weather API keys check:', {
       hasOpenWeatherKey: !!openWeatherApiKey,
@@ -325,28 +357,49 @@ const GeminiChatPanel: React.FC<GeminiChatPanelProps> = ({
     // Check if this is a RAG agent - use local model instead
     if (isRagAgent(agentConfig)) {
       try {
-        // Get relevant knowledge base context for RAG agent
-        const knowledgeContext = await getRagAgentContext(userMessage);
+        // Get system prompt and knowledge base context
+        const systemPrompt = getSystemPrompt();
+        const knowledgeContext = await knowledgeBaseRAGService.getRelevantContext(
+          agentConfig?.id || nodeId,
+          userMessage,
+          connectedKnowledgeBaseNodes || []
+        );
+
+        // Also try to get context from configuration documents
+        const configContext = await getRagAgentContext(userMessage);
+        const combinedContext = knowledgeContext + configContext;
 
         // Get the model from configuration
         const ragModel = agentConfig?.configuration?.customRag?.model || 'Mistral-7B-Instruct';
 
-        // Prepare the prompt with context
+        console.log('🤖 RAG Agent processing:', {
+          ragModel,
+          hasKnowledgeContext: !!knowledgeContext,
+          hasConfigContext: !!configContext,
+          systemPromptLength: systemPrompt.length
+        });
+
+        // Prepare messages with system prompt
+        const messages: Array<{role: 'system' | 'user' | 'assistant', content: string}> = [
+          { role: 'system', content: systemPrompt }
+        ];
+
+        // Prepare the user message with context
         let finalMessage = userMessage;
-        if (knowledgeContext) {
+        if (combinedContext) {
           finalMessage = `${userMessage}
 
-Context from knowledge base:${knowledgeContext}
+Context from knowledge base:${combinedContext}
 
-Please answer the question using the provided context when relevant.`;
+IMPORTANT: Follow your system limitations strictly. If the question is outside your designated scope, respond appropriately. When relevant context is available, use it to answer the question.`;
         }
+
+        messages.push({ role: 'user', content: finalMessage });
 
         // Use local model API
         const response = await localModelApi.generateChatCompletion({
           model: ragModel,
-          messages: [
-            { role: 'user', content: finalMessage }
-          ],
+          messages: messages,
           temperature: 0.7,
           max_tokens: 1024
         });
@@ -398,7 +451,7 @@ Please answer the question using the provided context when relevant.`;
       if (isWeatherQueryCheck) {
       console.log('Processing weather query:', userMessage);
       try {
-        const weatherData = await performWeatherQuery(userMessage);
+        const weatherData = await performWeatherQuery();
         const weatherConfig = agentConfig?.configuration?.weather;
 
         finalUserMessage = `User Query: ${userMessage}
