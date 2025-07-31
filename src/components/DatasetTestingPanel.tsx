@@ -206,6 +206,29 @@ ABSOLUTE REQUIREMENTS:
     return systemPrompt.trim();
   };
 
+  // Special system prompt for dataset testing with MCQ format
+  const getDatasetTestingSystemPrompt = (): string => {
+    const basePrompt = getSystemPrompt();
+
+    // Add MCQ-specific instructions
+    const mcqInstructions = `
+
+IMPORTANT: For dataset testing, you must follow these response format rules:
+1. If the question is multiple choice (has options like A, B, C, D), respond with ONLY the letter of your chosen answer (e.g., "A" or "B" or "C" or "D")
+2. Do NOT provide explanations, reasoning, or additional text for multiple choice questions
+3. Do NOT say "The answer is A" or "I choose B" - just respond with the single letter
+4. For non-multiple choice questions, provide a complete answer as normal
+
+Examples of correct MCQ responses:
+Question: "What is 2+2? A) 3 B) 4 C) 5 D) 6"
+Correct response: "B"
+
+Question: "Which is larger? A) Earth B) Moon"
+Correct response: "A"`;
+
+    return basePrompt + mcqInstructions;
+  };
+
   const shouldPerformSearch = (message: string): boolean => {
     if (!hasSearchCapability()) return false;
 
@@ -329,7 +352,7 @@ ABSOLUTE REQUIREMENTS:
         console.log('Using local RAG model:', ragModel);
 
         // Get system prompt and knowledge base context
-        const systemPrompt = getSystemPrompt();
+        const systemPrompt = getDatasetTestingSystemPrompt();
         let knowledgeContext = '';
         try {
           knowledgeContext = await knowledgeBaseRAGService.getRelevantContext(
@@ -370,7 +393,7 @@ IMPORTANT: Answer this question using the authoritative knowledge base informati
       }
 
       // For non-RAG agents, continue with Gemini API
-      const systemPrompt = getSystemPrompt();
+      const systemPrompt = getDatasetTestingSystemPrompt();
       let finalQuestion = question;
 
       // Get relevant knowledge base context

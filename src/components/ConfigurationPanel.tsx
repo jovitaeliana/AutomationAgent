@@ -1,6 +1,6 @@
 // src/components/ConfigurationPanel.tsx
 import React, { useState, useEffect, useCallback } from 'react';
-import { X, ChevronRight, ChevronLeft } from 'lucide-react';
+import { X, ChevronRight, ChevronLeft, FileText } from 'lucide-react';
 import { InputField, TextareaField, SelectField } from './FormField';
 import type { FlowNodeData } from './FlowNode';
 import type { Dataset, Agent } from '../lib/supabase';
@@ -64,6 +64,10 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
   const [weatherUnits, setWeatherUnits] = useState('Celsius');
   const [weatherMaxResults, setWeatherMaxResults] = useState('10');
   const [weatherCustomInstructions, setWeatherCustomInstructions] = useState('');
+
+  // RAG document upload state
+  const [ragDocuments, setRagDocuments] = useState<any[]>([]);
+  const [isUploadingDocument, setIsUploadingDocument] = useState(false);
   const [systemPrompt, setSystemPrompt] = useState('');
   const [limitations, setLimitations] = useState('');
   
@@ -166,6 +170,7 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
       setChunkUnit(config.customRag.chunkUnit || 'Sentences');
       setEmbeddingModel(config.customRag.embeddingModel || 'BAAI/bge-small-en');
       setTopKResults(config.customRag.topKResults || 10);
+      setRagDocuments(config.customRag.documents || []);
       if (!systemPromptEdited) setSystemPrompt(config.systemPrompt || '');
       if (!limitationsEdited) setLimitationsWithDebug(config.limitations || '');
     }
@@ -192,6 +197,7 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
       setChunkUnit(agentConfig.customRag.chunkUnit || 'Sentences');
       setEmbeddingModel(agentConfig.customRag.embeddingModel || 'BAAI/bge-small-en');
       setTopKResults(agentConfig.customRag.topKResults || 10);
+      setRagDocuments(agentConfig.customRag.documents || []);
       if (!systemPromptEdited) setSystemPrompt(agentConfig.systemPrompt || '');
       if (!limitationsEdited) setLimitationsWithDebug(agentConfig.limitations || '');
     }
@@ -218,6 +224,7 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
       setChunkUnit(agentConfig.customRag.chunkUnit || 'Sentences');
       setEmbeddingModel(agentConfig.customRag.embeddingModel || 'BAAI/bge-small-en');
       setTopKResults(agentConfig.customRag.topKResults || 10);
+      setRagDocuments(agentConfig.customRag.documents || []);
       if (!systemPromptEdited) setSystemPrompt(agentConfig.systemPrompt || '');
       if (!limitationsEdited) setLimitationsWithDebug(agentConfig.limitations || '');
     }
@@ -231,6 +238,7 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
       setChunkUnit(ragConfig.chunkUnit || 'Sentences');
       setEmbeddingModel(ragConfig.embeddingModel || 'BAAI/bge-small-en');
       setTopKResults(ragConfig.topKResults || 10);
+      setRagDocuments(ragConfig.documents || []);
       if (!systemPromptEdited) setSystemPrompt(config.agent.configuration.systemPrompt || '');
       if (!limitationsEdited) setLimitationsWithDebug(config.agent.configuration.limitations || '');
     }
@@ -288,6 +296,7 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
     setChunkUnit('Sentences');
     setEmbeddingModel('BAAI/bge-small-en');
     setTopKResults(10);
+    setRagDocuments([]);
 
     // Reset weather fields
     setWeatherOpenWeatherApiKey('');
@@ -356,6 +365,62 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
     return hasWeather;
   };
 
+  // Document upload handler
+  const handleDocumentUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsUploadingDocument(true);
+    const newDocuments: any[] = [];
+
+    try {
+      for (const file of Array.from(files)) {
+        // Read file content
+        const content = await readFileContent(file);
+
+        const document = {
+          name: file.name,
+          content: content,
+          type: file.type || 'text/plain',
+          size: file.size,
+          uploadedAt: new Date().toISOString()
+        };
+
+        newDocuments.push(document);
+      }
+
+      // Add to existing documents
+      setRagDocuments(prev => [...prev, ...newDocuments]);
+
+      // Clear the input
+      event.target.value = '';
+
+    } catch (error) {
+      console.error('Error uploading documents:', error);
+      showError('Upload Failed', 'Failed to upload one or more documents. Please try again.');
+    } finally {
+      setIsUploadingDocument(false);
+    }
+  };
+
+  // Helper function to read file content
+  const readFileContent = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target?.result as string;
+        resolve(content);
+      };
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsText(file);
+    });
+  };
+
+  // Remove document function
+  const removeDocument = (index: number) => {
+    setRagDocuments(prev => prev.filter((_, i) => i !== index));
+  };
+
   const handleSave = async () => {
     try {
       console.log('🔄 Starting configuration save...');
@@ -402,7 +467,8 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
             chunkOverlap: parseInt(chunkOverlap),
             chunkUnit,
             embeddingModel,
-            topKResults
+            topKResults,
+            documents: ragDocuments
           },
           systemPrompt,
           limitations,
@@ -704,10 +770,67 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
                             </div>
                           </div>
                         </div>
-                        
+
+                        {/* Document Upload Section */}
+                        <div className="mt-6">
+                          <h5 className="text-sm font-medium text-gray-900 mb-3">Knowledge Base Documents</h5>
+                          <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+                            <input
+                              type="file"
+                              multiple
+                              accept=".txt,.pdf,.doc,.docx,.json,.csv"
+                              onChange={handleDocumentUpload}
+                              className="hidden"
+                              id="rag-document-upload"
+                              disabled={isUploadingDocument}
+                            />
+                            <label
+                              htmlFor="rag-document-upload"
+                              className={`cursor-pointer flex flex-col items-center justify-center py-4 ${isUploadingDocument ? 'opacity-50' : ''}`}
+                            >
+                              <div className="text-gray-400 mb-2">
+                                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                </svg>
+                              </div>
+                              <p className="text-sm text-gray-600 text-center">
+                                {isUploadingDocument ? 'Uploading...' : 'Click to upload documents or drag and drop'}
+                              </p>
+                              <p className="text-xs text-gray-500 mt-1">
+                                Supports: TXT, PDF, DOC, DOCX, JSON, CSV
+                              </p>
+                            </label>
+                          </div>
+
+                          {/* Display uploaded documents */}
+                          {ragDocuments.length > 0 && (
+                            <div className="mt-4">
+                              <h6 className="text-sm font-medium text-gray-700 mb-2">Uploaded Documents ({ragDocuments.length})</h6>
+                              <div className="space-y-2 max-h-32 overflow-y-auto">
+                                {ragDocuments.map((doc, index) => (
+                                  <div key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded">
+                                    <div className="flex items-center">
+                                      <FileText className="w-4 h-4 text-gray-500 mr-2" />
+                                      <span className="text-sm text-gray-700 truncate">{doc.name}</span>
+                                      <span className="text-xs text-gray-500 ml-2">({(doc.size / 1024).toFixed(1)} KB)</span>
+                                    </div>
+                                    <button
+                                      onClick={() => removeDocument(index)}
+                                      className="text-red-500 hover:text-red-700 text-sm"
+                                    >
+                                      Remove
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
                         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-4">
                           <h4 className="font-medium text-blue-900 mb-1 text-sm">How it works:</h4>
                           <ul className="text-xs text-blue-800 space-y-1">
+                            <li>• Upload documents directly to this RAG agent</li>
                             <li>• Documents are chunked using your selected strategy and size</li>
                             <li>• Text chunks are converted to embeddings using the selected model</li>
                             <li>• When queried, the most relevant chunks are retrieved based on similarity</li>

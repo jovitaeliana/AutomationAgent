@@ -480,6 +480,7 @@ export const nodeConfigService = {
   },
 
   async saveConfiguration(nodeId: string, configuration: any, nodeType: string): Promise<NodeConfiguration> {
+    // Save to node_configurations table
     const { data, error } = await supabase
       .from('node_configurations')
       .upsert({
@@ -492,8 +493,54 @@ export const nodeConfigService = {
       })
       .select()
       .single();
-    
+
     if (error) throw error;
+
+    // If this is an agent configuration, also update the agents table
+    if (nodeType.includes('agent') && configuration?.type === 'agent' && configuration?.agent) {
+      const agentConfig = configuration.agent;
+
+      // Check if agent exists in agents table
+      const { data: existingAgent } = await supabase
+        .from('agents')
+        .select('id')
+        .eq('id', nodeId)
+        .single();
+
+      if (existingAgent) {
+        // Update existing agent
+        const { error: agentError } = await supabase
+          .from('agents')
+          .update({
+            configuration: agentConfig,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', nodeId);
+
+        if (agentError) {
+          console.error('Error updating agent configuration:', agentError);
+          // Don't throw error here as the node configuration was saved successfully
+        }
+      } else {
+        // Create new agent record if it doesn't exist
+        const { error: agentError } = await supabase
+          .from('agents')
+          .insert({
+            id: nodeId,
+            name: agentConfig.name || 'Unnamed Agent',
+            description: agentConfig.description || '',
+            configuration: agentConfig,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          });
+
+        if (agentError) {
+          console.error('Error creating agent record:', agentError);
+          // Don't throw error here as the node configuration was saved successfully
+        }
+      }
+    }
+
     return data;
   },
 

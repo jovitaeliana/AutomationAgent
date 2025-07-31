@@ -695,7 +695,7 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
   };
 
   return (
-    <div className="min-h-screen flex overflow-hidden bg-gradient-to-br from-app-bg-highlight to-app-bg-content">
+    <div className="h-screen flex overflow-hidden bg-gradient-to-br from-app-bg-highlight to-app-bg-content">
       {/* Left Panel - FlowSidebar */}
       <div className="bg-white border-r border-app-border flex-shrink-0 relative">
         <FlowSidebar nodes={availableNodes} isLoading={isLoading} error={error} />
