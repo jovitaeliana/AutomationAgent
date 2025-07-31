@@ -1,28 +1,17 @@
 #!/usr/bin/env python3
 """
-Local Model Server for RAG Agents
-Provides API endpoints for local GGUF models with GPU acceleration
+Local Model Server for RAG Agents (macOS Metal)
+Provides API endpoints for local GGUF models with Metal acceleration
 """
 
 import os
 import json
 from typing import Optional, List, Dict, Any
 from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from llama_cpp import Llama
-import torch
 
-app = FastAPI(title="Local Model Server", version="1.0.0")
-
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Explicitly allow OPTIONS
-    allow_headers=["*"],  # Allows all headers
-)
+app = FastAPI(title="Local Model Server (macOS)", version="1.0.0")
 
 # Model configurations
 MODELS = {
@@ -79,8 +68,8 @@ def load_model(model_key: str) -> Llama:
             detail=f"Model file not found: {model_path}"
         )
     
-    # Check if CUDA is available
-    n_gpu_layers = -1 if torch.cuda.is_available() else 0
+    # Use Metal acceleration on Apple Silicon
+    n_gpu_layers = -1  # Use all layers on Metal
     
     try:
         model = Llama(
@@ -96,11 +85,7 @@ def load_model(model_key: str) -> Llama:
 
 @app.get("/")
 async def root():
-    return {"message": "Local Model Server is running"}
-
-@app.options("/")
-async def root_options():
-    return {"message": "CORS preflight for root endpoint"}
+    return {"message": "Local Model Server (macOS Metal) is running"}
 
 @app.get("/models")
 async def list_models():
@@ -160,7 +145,7 @@ async def chat(request: ChatRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    print("🚀 Starting Local Model Server...")
+    print("🚀 Starting Local Model Server (macOS Metal)...")
     print("📍 Server will be available at http://localhost:8000")
     print("📚 API docs available at http://localhost:8000/docs")
     uvicorn.run(app, host="0.0.0.0", port=8000)
