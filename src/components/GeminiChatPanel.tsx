@@ -153,7 +153,8 @@ ABSOLUTE REQUIREMENTS:
 - You MUST NEVER provide information on topics outside your limitations
 - If asked about anything outside your scope, respond ONLY with: "I can only assist with [your designated scope]. This question is outside my area of expertise."
 - DO NOT provide any information on the restricted topic, even partially
-- DO NOT make exceptions under any circumstances\n`;
+- DO NOT make exceptions under any circumstances
+- IMPORTANT: If the question IS within your scope and expertise, answer it directly and naturally without mentioning limitations or scope restrictions\n`;
     }
 
     // Get system prompt from various possible configuration structures

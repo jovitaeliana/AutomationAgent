@@ -8,6 +8,7 @@ import KnowledgeBaseConfig from './KnowledgeBaseConfig';
 import AgentKnowledgeBaseConfig from './AgentKnowledgeBaseConfig';
 import { nodeConfigService } from '../services/api';
 import { useToast } from './ToastContainer';
+import { supabase } from '../lib/supabase';
 
 interface ConfigurationPanelProps {
   selectedNode: FlowNodeData | null;
@@ -122,14 +123,47 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
   const fetchConfigurationFromDB = async (nodeId: string) => {
     try {
       setIsLoadingConfig(true);
+
+      // First try to get configuration from agents table directly
+      try {
+        // Try to find agent by node ID in description or by name
+        const nodeName = selectedNode?.title?.replace('🤖 ', '') || '';
+        const { data: agents, error: agentError } = await supabase
+          .from('agents')
+          .select('*')
+          .or(`description.ilike.%${nodeId}%,name.eq.${nodeName}`);
+
+        if (agents && agents.length > 0 && !agentError) {
+          // Find the agent that matches this node
+          const matchingAgent = agents.find(agent =>
+            agent.description?.includes(nodeId) ||
+            agent.name === nodeName
+          );
+
+          if (matchingAgent && matchingAgent.configuration) {
+            console.log('📥 Fetched agent configuration from agents table:', matchingAgent);
+            // Wrap the agent configuration in the expected structure
+            const wrappedConfig = {
+              type: 'agent',
+              agent: matchingAgent.configuration
+            };
+            loadConfigurationIntoForm(wrappedConfig);
+            return;
+          }
+        }
+      } catch (agentError) {
+        console.log('⚠️ No agent found in agents table, checking node configurations...');
+      }
+
+      // Fallback to node_configurations table
       const allConfigs = await nodeConfigService.getAllConfigurations();
       const nodeConfiguration = allConfigs[nodeId];
 
       if (nodeConfiguration) {
-        console.log('📥 Fetched configuration from DB:', nodeConfiguration);
+        console.log('📥 Fetched configuration from node_configurations:', nodeConfiguration);
         loadConfigurationIntoForm(nodeConfiguration);
       } else {
-        console.log('⚠️ No configuration found in DB for node:', nodeId);
+        console.log('⚠️ No configuration found in either table for node:', nodeId);
         resetConfigurationForm();
       }
     } catch (error) {
@@ -536,6 +570,78 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
       
       console.log('📦 Final configuration to save:', JSON.stringify(updatedConfig, null, 2));
 
+      // Save directly to agents table in Supabase
+      try {
+        // Generate a UUID for the agent if it doesn't exist
+        const generateUUID = () => {
+          return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+            const r = Math.random() * 16 | 0;
+            const v = c == 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+          });
+        };
+
+        // Check if agent exists by looking for node_id in metadata or name
+        const { data: existingAgents } = await supabase
+          .from('agents')
+          .select('*')
+          .or(`name.eq.${selectedNode.title.replace('🤖 ', '')},description.ilike.%${selectedNode.id}%`);
+
+        let agentId = null;
+        let existingAgent = null;
+
+        if (existingAgents && existingAgents.length > 0) {
+          // Find agent that matches this node
+          existingAgent = existingAgents.find(agent =>
+            agent.description?.includes(selectedNode.id) ||
+            agent.name === selectedNode.title.replace('🤖 ', '')
+          );
+          if (existingAgent) {
+            agentId = existingAgent.id;
+          }
+        }
+
+        if (existingAgent) {
+          // Update existing agent
+          const { error: updateError } = await supabase
+            .from('agents')
+            .update({
+              configuration: agentConfig,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', agentId);
+
+          if (updateError) {
+            console.error('Error updating agent in Supabase:', updateError);
+            throw updateError;
+          }
+          console.log('✅ Updated agent configuration in Supabase agents table');
+        } else {
+          // Create new agent record with UUID
+          agentId = generateUUID();
+          const { error: insertError } = await supabase
+            .from('agents')
+            .insert({
+              id: agentId,
+              name: selectedNode.title.replace('🤖 ', '') || 'Unnamed Agent',
+              description: `Agent created from flow editor (Node ID: ${selectedNode.id})`,
+              configuration: agentConfig,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            });
+
+          if (insertError) {
+            console.error('Error creating agent in Supabase:', insertError);
+            throw insertError;
+          }
+          console.log('✅ Created new agent configuration in Supabase agents table');
+        }
+      } catch (supabaseError) {
+        console.error('Supabase save error:', supabaseError);
+        showError('Database Save Failed', 'Failed to save to agents table. Configuration may not persist.');
+        // Continue with other saves
+      }
+
       // Update local state first
       onConfigChange(updatedConfig);
 
@@ -771,9 +877,41 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
                           </div>
                         </div>
 
+                        {/* Current Documents Display */}
+                        {ragDocuments.length > 0 && (
+                          <div className="mt-6">
+                            <h5 className="text-sm font-medium text-gray-900 mb-3">Current Documents ({ragDocuments.length})</h5>
+                            <div className="bg-gray-50 rounded-lg p-4 max-h-40 overflow-y-auto">
+                              <div className="space-y-2">
+                                {ragDocuments.map((doc, index) => (
+                                  <div key={index} className="flex items-center justify-between bg-white p-3 rounded border">
+                                    <div className="flex items-center flex-1">
+                                      <FileText className="w-4 h-4 text-blue-500 mr-3 flex-shrink-0" />
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium text-gray-900 truncate">{doc.name}</p>
+                                        <p className="text-xs text-gray-500">
+                                          {(doc.size / 1024).toFixed(1)} KB • Uploaded {new Date(doc.uploadedAt).toLocaleDateString()}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <button
+                                      onClick={() => removeDocument(index)}
+                                      className="ml-3 text-red-500 hover:text-red-700 text-sm font-medium flex-shrink-0"
+                                    >
+                                      Remove
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
                         {/* Document Upload Section */}
                         <div className="mt-6">
-                          <h5 className="text-sm font-medium text-gray-900 mb-3">Knowledge Base Documents</h5>
+                          <h5 className="text-sm font-medium text-gray-900 mb-3">
+                            {ragDocuments.length > 0 ? 'Upload Additional Documents' : 'Upload Knowledge Base Documents'}
+                          </h5>
                           <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
                             <input
                               type="file"
