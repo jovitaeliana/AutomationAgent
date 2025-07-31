@@ -1,6 +1,6 @@
 // src/components/ConfigurationPanel.tsx
 import React, { useState, useEffect, useCallback } from 'react';
-import { X, ChevronRight, ChevronLeft, FileText } from 'lucide-react';
+import { X, ChevronRight, ChevronLeft, FileText, Trash2 } from 'lucide-react';
 import { InputField, TextareaField, SelectField } from './FormField';
 import type { FlowNodeData } from './FlowNode';
 import type { Dataset, Agent } from '../lib/supabase';
@@ -896,9 +896,10 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
                                     </div>
                                     <button
                                       onClick={() => removeDocument(index)}
-                                      className="ml-3 text-red-500 hover:text-red-700 text-sm font-medium flex-shrink-0"
+                                      className="ml-3 text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 flex-shrink-0"
+                                      title="Remove document"
                                     >
-                                      Remove
+                                      <Trash2 className="w-4 h-4" />
                                     </button>
                                   </div>
                                 ))}
@@ -954,9 +955,10 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
                                     </div>
                                     <button
                                       onClick={() => removeDocument(index)}
-                                      className="text-red-500 hover:text-red-700 text-sm"
+                                      className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50"
+                                      title="Remove document"
                                     >
-                                      Remove
+                                      <Trash2 className="w-4 h-4" />
                                     </button>
                                   </div>
                                 ))}

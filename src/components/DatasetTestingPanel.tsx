@@ -207,27 +207,98 @@ ABSOLUTE REQUIREMENTS:
     return systemPrompt.trim();
   };
 
-  // Special system prompt for dataset testing with MCQ format
-  const getDatasetTestingSystemPrompt = (): string => {
-    const basePrompt = getSystemPrompt();
 
-    // Add MCQ-specific instructions
-    const mcqInstructions = `
 
-IMPORTANT: For dataset testing, you must follow these response format rules:
-1. If the question is multiple choice (has options like A, B, C, D), respond with ONLY the letter of your chosen answer (e.g., "A" or "B" or "C" or "D")
-2. Do NOT provide explanations, reasoning, or additional text for multiple choice questions
-3. Do NOT say "The answer is A" or "I choose B" - just respond with the single letter
-4. For non-multiple choice questions, provide a complete answer as normal
+  // Special system prompt for local RAG models (simpler instructions)
+  const getLocalRagTestingSystemPrompt = (): string => {
+    if (!agentConfig?.configuration) {
+      return "You are a helpful AI assistant. For multiple choice questions, respond with only the letter (A, B, C, or D).";
+    }
 
-Examples of correct MCQ responses:
-Question: "What is 2+2? A) 3 B) 4 C) 5 D) 6"
-Correct response: "B"
+    const config = agentConfig.configuration;
+    let systemPrompt = `You are an AI assistant named "${agentConfig.name}".`;
 
-Question: "Which is larger? A) Earth B) Moon"
-Correct response: "A"`;
+    // Add role/purpose
+    if (agentConfig.description) {
+      systemPrompt += ` Your role: ${agentConfig.description}`;
+    }
 
-    return basePrompt + mcqInstructions;
+    // Get limitations
+    let limitations = config.limitations;
+    if (!limitations && config.agent?.limitations) {
+      limitations = config.agent.limitations;
+    }
+    if (!limitations && config.configuration?.limitations) {
+      limitations = config.configuration.limitations;
+    }
+
+    // Add limitations (simpler format for local models)
+    if (limitations) {
+      systemPrompt += `\n\nIMPORTANT LIMITATIONS: ${limitations}`;
+      systemPrompt += `\nIf a question is outside your scope, say: "I can only assist with [your scope]. This is outside my expertise."`;
+    }
+
+    // Get custom system prompt
+    let customSystemPrompt = config.systemPrompt;
+    if (!customSystemPrompt && config.agent?.systemPrompt) {
+      customSystemPrompt = config.agent.systemPrompt;
+    }
+    if (!customSystemPrompt && config.configuration?.systemPrompt) {
+      customSystemPrompt = config.configuration.systemPrompt;
+    }
+
+    if (customSystemPrompt) {
+      systemPrompt += `\n\nAdditional instructions: ${customSystemPrompt}`;
+    }
+
+    // Add MCQ instructions (textual answers for better local model performance)
+    systemPrompt += `\n\nFOR MULTIPLE CHOICE QUESTIONS:
+- Read the question and all available options carefully
+- Choose the best answer based on the provided context
+- Respond with the EXACT TEXT of your chosen answer
+- Do not add explanations, reasoning, or extra text
+- Just provide the exact answer text from the options
+
+Examples:
+Question: "What color is the sky?" Options: Red, Blue, Green
+Answer: Blue
+
+Question: "What is 2+2?" Options: 3, 4, 5
+Answer: 4`;
+
+    return systemPrompt;
+  };
+
+  // Function to process MCQ questions and extract textual options
+  const processMCQQuestion = (question: string): { cleanQuestion: string; textualOptions: string[] } => {
+    // Check if this is an MCQ question with A), B), C), D) format
+    const mcqPattern = /^(.*?)\s*(?:Options:|Choices:)?\s*A\)\s*(.*?)\s*B\)\s*(.*?)\s*C\)\s*(.*?)\s*(?:D\)\s*(.*?))?\s*$/s;
+    const match = question.match(mcqPattern);
+
+    if (match) {
+      const cleanQuestion = match[1].trim();
+      const options = [
+        match[2]?.trim(),
+        match[3]?.trim(),
+        match[4]?.trim(),
+        match[5]?.trim()
+      ].filter(Boolean);
+
+      return { cleanQuestion, textualOptions: options };
+    }
+
+    // Alternative pattern: Question followed by options on separate lines
+    const lines = question.split('\n').map(line => line.trim()).filter(Boolean);
+    const questionLine = lines[0];
+    const optionLines = lines.slice(1).filter(line => /^[A-D]\)/.test(line));
+
+    if (optionLines.length >= 2) {
+      const textualOptions = optionLines.map(line => line.replace(/^[A-D]\)\s*/, '').trim());
+      return { cleanQuestion: questionLine, textualOptions };
+    }
+
+    // If no MCQ pattern found, return as is
+    return { cleanQuestion: question, textualOptions: [] };
   };
 
   const shouldPerformSearch = (message: string): boolean => {
@@ -352,12 +423,12 @@ Correct response: "A"`;
         const ragModel = agentConfig?.configuration?.customRag?.model || 'Mistral-7B-Instruct';
         console.log('Using local RAG model:', ragModel);
 
-        // Get system prompt and knowledge base context
-        const systemPrompt = getDatasetTestingSystemPrompt();
+        // Get system prompt and knowledge base context (use simpler prompt for local models)
+        const systemPrompt = getLocalRagTestingSystemPrompt();
         let knowledgeContext = '';
         try {
           knowledgeContext = await knowledgeBaseRAGService.getRelevantContext(
-            agentConfig.id,
+            agentConfig?.id || '',
             question,
             connectedKnowledgeBaseNodes
           );
@@ -370,10 +441,19 @@ Correct response: "A"`;
           { role: 'system', content: systemPrompt }
         ];
 
+        // Process MCQ questions to extract textual options
+        const { cleanQuestion, textualOptions } = processMCQQuestion(question);
+
         // Prepare the user message with context
-        let finalQuestion = question;
+        let finalQuestion = cleanQuestion;
+
+        // Add textual options if this is an MCQ
+        if (textualOptions.length > 0) {
+          finalQuestion += `\n\nOptions: ${textualOptions.join(', ')}`;
+        }
+
         if (knowledgeContext) {
-          finalQuestion = `${question}
+          finalQuestion = `${finalQuestion}
 
 Context from knowledge base:${knowledgeContext}
 
@@ -394,8 +474,16 @@ IMPORTANT: Answer this question using the authoritative knowledge base informati
       }
 
       // For non-RAG agents, continue with Gemini API
-      const systemPrompt = getDatasetTestingSystemPrompt();
-      let finalQuestion = question;
+      const systemPrompt = getLocalRagTestingSystemPrompt(); // Use simpler prompt for better MCQ handling
+
+      // Process MCQ questions to extract textual options
+      const { cleanQuestion, textualOptions } = processMCQQuestion(question);
+      let finalQuestion = cleanQuestion;
+
+      // Add textual options if this is an MCQ
+      if (textualOptions.length > 0) {
+        finalQuestion += `\n\nOptions: ${textualOptions.join(', ')}`;
+      }
 
       // Get relevant knowledge base context
       let knowledgeContext = '';
