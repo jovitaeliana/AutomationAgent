@@ -552,15 +552,72 @@ IMPORTANT: Answer this question using the authoritative knowledge base informati
 
     // If there are options (MCQ), try to match against them
     if (options && options.length > 0) {
-      // Look for exact option matches
-      for (const option of options) {
-        if (cleanResponse.includes(option.toLowerCase())) {
-          return option;
+      // Strategy 1: Look for direct answer statements like "is currently located at X"
+      const locationMatch = cleanResponse.match(/(?:is (?:currently )?located at|located at|current location.*?is)\s+([^.]+)/i);
+      if (locationMatch) {
+        const extractedLocation = locationMatch[1].trim();
+        // Find the option that best matches this extracted location
+        for (const option of options) {
+          if (extractedLocation.toLowerCase().includes(option.toLowerCase()) || 
+              option.toLowerCase().includes(extractedLocation.toLowerCase())) {
+            return option;
+          }
         }
       }
 
-      // Look for option letters (A, B, C, D)
-      const optionLetterMatch = cleanResponse.match(/\b([a-d])\b/i);
+      // Strategy 2: Look for the answer in context clues (avoid first mentions that might be in question context)
+      const sentences = response.split(/[.!?]+/);
+      for (let i = sentences.length - 1; i >= 0; i--) { // Start from end to avoid question context
+        const sentence = sentences[i].trim().toLowerCase();
+        if (sentence.length > 10) { // Only consider substantial sentences
+          for (const option of options) {
+            if (sentence.includes(option.toLowerCase())) {
+              return option;
+            }
+          }
+        }
+      }
+
+      // Strategy 3: Look for definitive answer patterns
+      const answerPatterns = [
+        /(?:the )?answer is:?\s*([^.]+)/i,
+        /(?:correct )?answer:?\s*([^.]+)/i,
+        /(?:currently )?located at:?\s*([^.]+)/i,
+        /(?:package.*?is.*?at)\s*([^.]+)/i
+      ];
+
+      for (const pattern of answerPatterns) {
+        const match = response.match(pattern);
+        if (match) {
+          const extractedAnswer = match[1].trim();
+          for (const option of options) {
+            if (extractedAnswer.toLowerCase().includes(option.toLowerCase()) || 
+                option.toLowerCase().includes(extractedAnswer.toLowerCase())) {
+              return option;
+            }
+          }
+        }
+      }
+
+      // Strategy 4: Look for exact option matches (but be more careful about context)
+      const responseWords = cleanResponse.split(/\s+/);
+      for (const option of options) {
+        const optionWords = option.toLowerCase().split(/\s+/);
+        // Check if all words of the option appear consecutively in the response
+        for (let i = 0; i <= responseWords.length - optionWords.length; i++) {
+          const consecutive = responseWords.slice(i, i + optionWords.length);
+          if (consecutive.join(' ') === optionWords.join(' ')) {
+            // Make sure this isn't in the question context (avoid first 20% of response)
+            const positionRatio = i / responseWords.length;
+            if (positionRatio > 0.2) { // Skip matches in first 20% of response
+              return option;
+            }
+          }
+        }
+      }
+
+      // Strategy 5: Look for option letters (A, B, C, D) - but be more specific
+      const optionLetterMatch = cleanResponse.match(/(?:option|choice|answer)\s*([a-d])\b/i);
       if (optionLetterMatch) {
         const letterIndex = optionLetterMatch[1].toUpperCase().charCodeAt(0) - 65;
         if (letterIndex >= 0 && letterIndex < options.length) {
@@ -827,8 +884,8 @@ IMPORTANT: Answer this question using the authoritative knowledge base informati
 
   return (
     <div className="h-full flex flex-col max-h-screen">
-      {/* Header */}
-      <div className="p-4 border-b border-app-border">
+      {/* Fixed Header */}
+      <div className="flex-shrink-0 p-4 border-b border-app-border">
         <div className="flex items-center space-x-2 mb-2">
           <button
             onClick={onBack}
@@ -843,180 +900,182 @@ IMPORTANT: Answer this question using the authoritative knowledge base informati
         </p>
       </div>
 
-      {/* Dataset Selection */}
-      {!selectedDataset ? (
-        <div className="p-4 space-y-4">
-          <h4 className="font-medium text-app-text">Select a Dataset</h4>
-          {datasets.length === 0 ? (
-            <p className="text-sm text-app-text-subtle">No datasets available</p>
-          ) : (
-            <div className="space-y-2">
-              {datasets.map((dataset) => (
-                <button
-                  key={dataset.id}
-                  onClick={() => setSelectedDataset(dataset)}
-                  className="w-full text-left p-3 border border-app-border rounded hover:border-primary transition-colors"
-                >
-                  <div className="font-medium text-app-text">{dataset.name}</div>
-                  <div className="text-sm text-app-text-subtle">
-                    {dataset.type} • {dataset.total_questions} questions
+      {/* Scrollable Content Area */}
+      <div className="flex-1 overflow-y-auto min-h-0">
+        {/* Dataset Selection */}
+        {!selectedDataset ? (
+          <div className="p-4 space-y-4">
+            <h4 className="font-medium text-app-text">Select a Dataset</h4>
+            {datasets.length === 0 ? (
+              <p className="text-sm text-app-text-subtle">No datasets available</p>
+            ) : (
+              <div className="space-y-2">
+                {datasets.map((dataset) => (
+                  <button
+                    key={dataset.id}
+                    onClick={() => setSelectedDataset(dataset)}
+                    className="w-full text-left p-3 border border-app-border rounded hover:border-primary transition-colors"
+                  >
+                    <div className="font-medium text-app-text">{dataset.name}</div>
+                    <div className="text-sm text-app-text-subtle">
+                      {dataset.type} • {dataset.total_questions} questions
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <>
+            {/* Test Completion Summary */}
+            {testCompleted && testResults.length > 0 && (
+              <div className="p-4 border-b border-app-border bg-green-50">
+                <div className="text-center">
+                  <h3 className="text-xl font-bold text-green-800 mb-2">
+                    Test Completed!
+                  </h3>
+                  <div className="text-3xl font-bold text-green-600 mb-2">
+                    {Math.round((getTestStats().correct / getTestStats().total) * 100)}% Accuracy
                   </div>
+                  <div className="text-sm text-green-700 mb-3">
+                    {getTestStats().correct} correct out of {getTestStats().total} questions
+                  </div>
+                  <div className="flex justify-center space-x-2">
+                    <button
+                      onClick={startTesting}
+                      className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                    >
+                      Retest Same Dataset
+                    </button>
+                    <button
+                      onClick={retestWithNewDataset}
+                      className="px-4 py-2 border border-green-600 text-green-600 rounded hover:bg-green-50 transition-colors"
+                    >
+                      Choose Different Dataset
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Selected Dataset Info */}
+            <div className="p-4 border-b border-app-border">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="font-medium text-app-text">{selectedDataset.name}</h4>
+                <button
+                  onClick={() => setSelectedDataset(null)}
+                  className="text-sm text-app-text-subtle hover:text-app-text"
+                >
+                  Change Dataset
                 </button>
-              ))}
+              </div>
+              <p className="text-sm text-app-text-subtle">
+                {selectedDataset.type} • {questions.length} questions
+              </p>
             </div>
-          )}
-        </div>
-      ) : (
-        <>
-          {/* Test Completion Summary */}
-          {testCompleted && testResults.length > 0 && (
-            <div className="p-4 border-b border-app-border bg-green-50">
-              <div className="text-center">
-                <h3 className="text-xl font-bold text-green-800 mb-2">
-                  Test Completed!
-                </h3>
-                <div className="text-3xl font-bold text-green-600 mb-2">
-                  {Math.round((getTestStats().correct / getTestStats().total) * 100)}% Accuracy
-                </div>
-                <div className="text-sm text-green-700 mb-3">
-                  {getTestStats().correct} correct out of {getTestStats().total} questions
-                </div>
-                <div className="flex justify-center space-x-2">
+
+            {/* Test Controls */}
+            <div className="p-4 border-b border-app-border">
+              <div className="flex items-center space-x-2 mb-4">
+                {!isRunning && !isPaused ? (
                   <button
                     onClick={startTesting}
-                    className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                    disabled={!getApiKey()}
+                    className="flex items-center space-x-2 px-3 py-2 bg-primary text-white rounded hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Retest Same Dataset
+                    <Play size={16} />
+                    <span>Start Test</span>
                   </button>
+                ) : isPaused ? (
                   <button
-                    onClick={retestWithNewDataset}
-                    className="px-4 py-2 border border-green-600 text-green-600 rounded hover:bg-green-50 transition-colors"
+                    onClick={resumeTesting}
+                    disabled={!getApiKey()}
+                    className="flex items-center space-x-2 px-3 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Choose Different Dataset
+                    <Play size={16} />
+                    <span>Resume Test</span>
                   </button>
-                </div>
+                ) : (
+                  <button
+                    onClick={pauseTesting}
+                    className="flex items-center space-x-2 px-3 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
+                  >
+                    <Pause size={16} />
+                    <span>Pause</span>
+                  </button>
+                )}
+                
+                <button
+                  onClick={resetTesting}
+                  className="flex items-center space-x-2 px-3 py-2 border border-app-border text-app-text rounded hover:bg-gray-50"
+                >
+                  <RotateCcw size={16} />
+                  <span>Reset</span>
+                </button>
               </div>
-            </div>
-          )}
 
-          {/* Selected Dataset Info */}
-          <div className="p-4 border-b border-app-border">
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="font-medium text-app-text">{selectedDataset.name}</h4>
-              <button
-                onClick={() => setSelectedDataset(null)}
-                className="text-sm text-app-text-subtle hover:text-app-text"
-              >
-                Change Dataset
-              </button>
-            </div>
-            <p className="text-sm text-app-text-subtle">
-              {selectedDataset.type} • {questions.length} questions
-            </p>
-          </div>
-
-          {/* Test Controls */}
-          <div className="p-4 border-b border-app-border">
-            <div className="flex items-center space-x-2 mb-4">
-              {!isRunning && !isPaused ? (
-                <button
-                  onClick={startTesting}
-                  disabled={!getApiKey()}
-                  className="flex items-center space-x-2 px-3 py-2 bg-primary text-white rounded hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Play size={16} />
-                  <span>Start Test</span>
-                </button>
-              ) : isPaused ? (
-                <button
-                  onClick={resumeTesting}
-                  disabled={!getApiKey()}
-                  className="flex items-center space-x-2 px-3 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Play size={16} />
-                  <span>Resume Test</span>
-                </button>
-              ) : (
-                <button
-                  onClick={pauseTesting}
-                  className="flex items-center space-x-2 px-3 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
-                >
-                  <Pause size={16} />
-                  <span>Pause</span>
-                </button>
+              {!getApiKey() && (
+                <div className="text-sm text-red-600 bg-red-50 p-2 rounded">
+                  ⚠️ {isRagAgent(agentConfig)
+                    ? 'No HuggingFace token found in agent configuration. Please configure the agent first.'
+                    : 'No Gemini API key found in agent configuration. Please configure the agent first.'
+                  }
+                </div>
               )}
-              
-              <button
-                onClick={resetTesting}
-                className="flex items-center space-x-2 px-3 py-2 border border-app-border text-app-text rounded hover:bg-gray-50"
-              >
-                <RotateCcw size={16} />
-                <span>Reset</span>
-              </button>
+
+              {isPaused && (
+                <div className="text-sm text-amber-600 bg-amber-50 p-2 rounded">
+                  ⏸️ Test paused at question {testResults.length} of {questions.length}. Click "Resume Test" to continue.
+                </div>
+              )}
+
+              {error && (
+                <div className="text-sm text-red-600 bg-red-50 p-2 rounded">
+                  Error: {error}
+                </div>
+              )}
             </div>
 
-            {!getApiKey() && (
-              <div className="text-sm text-red-600 bg-red-50 p-2 rounded">
-                ⚠️ {isRagAgent(agentConfig)
-                  ? 'No HuggingFace token found in agent configuration. Please configure the agent first.'
-                  : 'No Gemini API key found in agent configuration. Please configure the agent first.'
-                }
+            {/* Progress and Stats */}
+            {testResults.length > 0 && (
+              <div className="p-4 border-b border-app-border">
+                <div className="mb-2">
+                  <div className="flex justify-between text-sm text-app-text-subtle mb-1">
+                    <span>Progress</span>
+                    <span>{testResults.length} / {questions.length}</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div 
+                      className="bg-primary h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${(testResults.length / questions.length) * 100}%` }}
+                    ></div>
+                  </div>
+                </div>
+
+                {/* Stats */}
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle size={16} className="text-green-500" />
+                    <span>Correct: {getTestStats().correct}</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <XCircle size={16} className="text-red-500" />
+                    <span>Incorrect: {getTestStats().incorrect}</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Clock size={16} className="text-blue-500" />
+                    <span>Avg: {Math.round(getTestStats().avgResponseTime)}ms</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <XCircle size={16} className="text-gray-500" />
+                    <span>Errors: {getTestStats().errors}</span>
+                  </div>
+                </div>
               </div>
             )}
 
-            {isPaused && (
-              <div className="text-sm text-amber-600 bg-amber-50 p-2 rounded">
-                ⏸️ Test paused at question {testResults.length} of {questions.length}. Click "Resume Test" to continue.
-              </div>
-            )}
-
-            {error && (
-              <div className="text-sm text-red-600 bg-red-50 p-2 rounded">
-                Error: {error}
-              </div>
-            )}
-          </div>
-
-          {/* Progress and Stats */}
-          {testResults.length > 0 && (
-            <div className="p-4 border-b border-app-border">
-              <div className="mb-2">
-                <div className="flex justify-between text-sm text-app-text-subtle mb-1">
-                  <span>Progress</span>
-                  <span>{testResults.length} / {questions.length}</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div 
-                    className="bg-primary h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${(testResults.length / questions.length) * 100}%` }}
-                  ></div>
-                </div>
-              </div>
-
-              {/* Stats */}
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div className="flex items-center space-x-2">
-                  <CheckCircle size={16} className="text-green-500" />
-                  <span>Correct: {getTestStats().correct}</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <XCircle size={16} className="text-red-500" />
-                  <span>Incorrect: {getTestStats().incorrect}</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Clock size={16} className="text-blue-500" />
-                  <span>Avg: {Math.round(getTestStats().avgResponseTime)}ms</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <XCircle size={16} className="text-gray-500" />
-                  <span>Errors: {getTestStats().errors}</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Test Results */}
-          <div className="flex-1 overflow-y-auto p-4 min-h-0">
+            {/* Test Results */}
+            <div className="p-4">
             {testResults.length === 0 ? (
               <p className="text-sm text-app-text-subtle text-center py-8">
                 No test results yet. Click "Start Test" to begin.
@@ -1096,9 +1155,10 @@ IMPORTANT: Answer this question using the authoritative knowledge base informati
                 ))}
               </div>
             )}
-          </div>
-        </>
-      )}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 };
