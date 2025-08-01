@@ -41,7 +41,9 @@ class LocalModelApiService {
   // Map full model names to server model keys
   private modelNameMap: Record<string, string> = {
     'Mistral-7B-Instruct': 'mistral',
+    'Mistral-Large-5K-Instruct': 'mistral-large',
     'Llama-3-8B-Instruct': 'llama',
+    'Llama-3.1-8B-Instruct': 'llama',
     'TinyLlama-1.1B-Chat': 'tinyllama',
     'OpenHermes-2.5-Mistral': 'openhermes'
   };

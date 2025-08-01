@@ -23,26 +23,30 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Model configurations - Using only Mistral to save space
+# Model configurations
 MODELS = {
     "mistral": {
-        "path": "./models/mistral.gguf",
+        "path": "./models/llama.gguf",
         "name": "Mistral-7B-Instruct",
         "context_length": 4096
     },
-    # All other models redirect to Mistral to save space
+    "mistral-large": {
+        "path": "./models/llama.gguf",
+        "name": "Mistral-Large-5K-Instruct",
+        "context_length": 8192
+    },
     "llama": {
-        "path": "./models/mistral.gguf",
-        "name": "Mistral-7B-Instruct",
+        "path": "./models/llama.gguf",
+        "name": "Llama-3.1-8B-Instruct",
         "context_length": 4096
     },
     "tinyllama": {
-        "path": "./models/mistral.gguf",
+        "path": "./models/llama.gguf",
         "name": "Mistral-7B-Instruct",
         "context_length": 4096
     },
     "openhermes": {
-        "path": "./models/mistral.gguf",
+        "path": "./models/llama.gguf",
         "name": "Mistral-7B-Instruct",
         "context_length": 4096
     }

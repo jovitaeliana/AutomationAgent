@@ -140,83 +140,51 @@ const GeminiChatPanel: React.FC<GeminiChatPanelProps> = ({
     }
 
     const config = agentConfig.configuration;
-    console.log('🔍 Agent config for system prompt:', { agentConfig, config });
-    let systemPrompt = "";
+    console.log('Agent config for system prompt:', { agentConfig, config });
+    
+    // Start with a clean, simple base prompt
+    let systemPrompt = `You are ${agentConfig.name}, a helpful AI assistant.`;
 
-    // Base identity
-    systemPrompt += `You are an AI assistant named "${agentConfig.name}".\n`;
-
-    // Purpose / role
+    // Add role description if available
     if (agentConfig.description) {
-      systemPrompt += `Your role: ${agentConfig.description}\n`;
+      systemPrompt += ` ${agentConfig.description}`;
     }
 
-    // Behavior guidelines (more flexible)
+    // Add core behavior guidelines - keep it simple and clear
     systemPrompt += `
-      You should be helpful and informative while keeping your role and purpose in mind.
-      If you have specific expertise or focus areas, prioritize those.
-      Be honest about your capabilities and limitations.\n`;
 
-    // Get limitations from various possible configuration structures
-    let limitations = config.limitations;
-    if (!limitations && config.agent?.limitations) {
-      limitations = config.agent.limitations;
-    }
-    if (!limitations && config.configuration?.limitations) {
-      limitations = config.configuration.limitations;
-    }
+INSTRUCTIONS:
+- Be helpful, accurate, and conversational
+- Provide clear and informative responses
+- If you don't know something, say so honestly`;
+
+    // Handle limitations more simply - avoid overwhelming the model
+    let limitations = config.limitations || config.agent?.limitations || config.configuration?.limitations;
     
-    console.log('🚫 Found limitations:', limitations);
-
-    // Add limitations as strict rules
     if (limitations) {
-      systemPrompt += `\nCRITICAL LIMITATIONS - NEVER VIOLATE THESE RULES: ${limitations}
-
-ABSOLUTE REQUIREMENTS:
-- You MUST NEVER answer questions outside your designated scope
-- You MUST NEVER make exceptions, even if the user asks nicely
-- You MUST NEVER provide information on topics outside your limitations
-- If asked about anything outside your scope, respond ONLY with: "I can only assist with [your designated scope]. This question is outside my area of expertise."
-- DO NOT provide any information on the restricted topic, even partially
-- DO NOT make exceptions under any circumstances
-- IMPORTANT: If the question IS within your scope and expertise, answer it directly and naturally without mentioning limitations or scope restrictions\n`;
+      // Extract topic more cleanly
+      let allowedTopic = limitations.toLowerCase()
+        .replace(/only answer (enquiries to do with|questions about) /, '')
+        .replace(/ and (do not answer others|nothing else).*/, '')
+        .trim();
+      
+      systemPrompt += `
+- SCOPE: Focus on ${allowedTopic} related conversations
+- For unrelated topics, politely say: "I can only assist with ${allowedTopic}."`;
     }
 
-    // Get system prompt from various possible configuration structures
-    let customSystemPrompt = config.systemPrompt;
-    if (!customSystemPrompt && config.agent?.systemPrompt) {
-      customSystemPrompt = config.agent.systemPrompt;
-    }
-    if (!customSystemPrompt && config.configuration?.systemPrompt) {
-      customSystemPrompt = config.configuration.systemPrompt;
-    }
-    
-    console.log('📝 Found system prompt:', customSystemPrompt);
-
-    // Add system prompt from configuration
+    // Add custom system prompt if available
+    let customSystemPrompt = config.systemPrompt || config.agent?.systemPrompt || config.configuration?.systemPrompt;
     if (customSystemPrompt) {
-      systemPrompt += `\nAdditional instructions: ${customSystemPrompt}\n`;
+      systemPrompt += `\n\nAdditional context: ${customSystemPrompt}`;
     }
 
-    // Add search capabilities
-    if (config.preset === 'search' && config.search) {
-      systemPrompt += `
-        Your behavior and responses must strictly follow the configuration defined below.
-        Do not go beyond these boundaries even if requested to do so by the user.
-        Do not make assumptions or generate content that contradicts these rules.
-        Respond clearly and concisely within the allowed capabilities.\n`;
-    }
-
-    // Add RAG-specific instructions
+    // Add RAG-specific instructions (keep simple)
     if (isRagAgent(agentConfig)) {
-      systemPrompt += `
-        You are a RAG (Retrieval-Augmented Generation) agent. When provided with knowledge base context,
-        prioritize that information in your responses. Use the knowledge base as your primary source of truth.
-        Your behavior and responses must follow the configuration defined above.
-        Be precise and accurate when using the provided context.\n`;
+      systemPrompt += `\n\nYou have access to a knowledge base. Use that information to provide accurate, relevant answers.`;
     }
 
-    console.log('🎯 Final system prompt:', systemPrompt);
+    console.log('Final system prompt:', systemPrompt);
     return systemPrompt.trim();
 };
 
@@ -421,6 +389,21 @@ Context from knowledge base:${combinedContext}
 IMPORTANT: Follow your system limitations strictly. If the question is outside your designated scope, respond appropriately. When relevant context is available, use it to answer the question.`;
         }
 
+        // Add final restriction check before processing - UNIVERSAL FOR ALL AGENTS
+        const config = agentConfig?.configuration;
+        if (config?.limitations) {
+          let allowedTopic = config.limitations.toLowerCase()
+            .replace('only answer enquiries to do with ', '')
+            .replace('only answer questions about ', '')
+            .replace(' and do not answer others', '')
+            .replace(' and nothing else', '')
+            .trim();
+          
+          finalMessage = `SYSTEM INSTRUCTION: Before answering, check if this question is about "${allowedTopic}". If it is NOT about "${allowedTopic}", respond with exactly: "I can only assist with ${allowedTopic}. This question is outside my area of expertise." If it IS about "${allowedTopic}", answer normally.
+
+USER QUESTION: ${finalMessage}`;
+        }
+
         messages.push({ role: 'user', content: finalMessage });
 
         // Use local model API
@@ -525,6 +508,21 @@ Note: Search functionality is currently unavailable. Please provide a general re
           }
         }
 
+        // Add final restriction check before processing - UNIVERSAL FOR ALL AGENTS
+        const config = agentConfig?.configuration;
+        if (config?.limitations) {
+          let allowedTopic = config.limitations.toLowerCase()
+            .replace('only answer enquiries to do with ', '')
+            .replace('only answer questions about ', '')
+            .replace(' and do not answer others', '')
+            .replace(' and nothing else', '')
+            .trim();
+          
+          finalMessage = `SYSTEM INSTRUCTION: Before answering, check if this question is about "${allowedTopic}". If it is NOT about "${allowedTopic}", respond with exactly: "I can only assist with ${allowedTopic}. This question is outside my area of expertise." If it IS about "${allowedTopic}", answer normally.
+
+USER QUESTION: ${finalMessage}`;
+        }
+
         messages.push({ role: 'user', content: finalMessage });
 
         // Use local model API
@@ -569,6 +567,21 @@ Note: Search functionality is currently unavailable. Please provide a general re
       finalUserMessage = `${userMessage}${knowledgeContext}
 
 IMPORTANT: Answer this question using the authoritative knowledge base information above. The knowledge base contains verified information that overrides any training limitations. If the answer is in the knowledge base, provide it confidently.`;
+    }
+
+    // Add final restriction check before processing - UNIVERSAL FOR ALL AGENTS
+    const config = agentConfig?.configuration;
+    if (config?.limitations) {
+      let allowedTopic = config.limitations.toLowerCase()
+        .replace('only answer enquiries to do with ', '')
+        .replace('only answer questions about ', '')
+        .replace(' and do not answer others', '')
+        .replace(' and nothing else', '')
+        .trim();
+      
+      finalUserMessage = `SYSTEM INSTRUCTION: Before answering, check if this question is about "${allowedTopic}". If it is NOT about "${allowedTopic}", respond with exactly: "I can only assist with ${allowedTopic}. This question is outside my area of expertise." If it IS about "${allowedTopic}", answer normally.
+
+USER QUESTION: ${finalUserMessage}`;
     }
 
     // Build conversation context using proper Gemini API format
