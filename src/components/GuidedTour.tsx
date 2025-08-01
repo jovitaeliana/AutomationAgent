@@ -5,7 +5,7 @@ interface TourStep {
   id: string;
   title: string;
   content: string;
-  target?: string; // CSS selector for the element to highlight
+  target?: string; 
   position: 'top' | 'bottom' | 'left' | 'right' | 'center';
   action?: () => void;
 }
@@ -98,7 +98,6 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, onNavigate }) 
 
   const skipTour = () => {
     onClose();
-    // Mark tour as completed in localStorage
     localStorage.setItem('automationagent-tour-completed', 'true');
   };
 
@@ -246,7 +245,6 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, onNavigate }) 
   );
 };
 
-// Helper function to calculate position styles
 const getPositionStyles = (step: TourStep, element: HTMLElement | null): React.CSSProperties => {
   if (!element || step.position === 'center') {
     return {
@@ -257,8 +255,8 @@ const getPositionStyles = (step: TourStep, element: HTMLElement | null): React.C
   }
 
   const rect = element.getBoundingClientRect();
-  const bubbleWidth = 384; // max-w-sm is roughly 384px
-  const bubbleHeight = 200; // approximate height
+  const bubbleWidth = 384; 
+  const bubbleHeight = 200; 
 
   switch (step.position) {
     case 'bottom':
