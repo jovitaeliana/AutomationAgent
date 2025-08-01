@@ -7,17 +7,17 @@ echo "🚀 Starting Local Model Server..."
 source venv/bin/activate
 
 # Check if Mistral model exists (used for all model types)
-echo "📁 Checking for Mistral model file..."
+echo "📁 Checking for Llama model file..."
 
-if [ -f "./models/mistral.gguf" ]; then
-    echo "✅ Mistral model found (used for all model types)"
-    echo "📊 All model requests will use Mistral to save space"
+if [ -f "./models/llama.gguf" ]; then
+    echo "✅ Llama model found (used for all model types)"
+    echo "📊 All model requests will use Llama to save space"
 else
-    echo "⚠️  Mistral model not found in ./models/ directory"
-    echo "Please copy your mistral.gguf file to the models directory:"
-    echo "  - mistral.gguf"
+    echo "⚠️  Llama model not found in ./models/ directory"
+    echo "Please copy your llama.gguf file to the models directory:"
+    echo "  - llama.gguf"
     echo ""
-    echo "Note: All model types (Llama, TinyLlama, OpenHermes) will use Mistral to save space."
+    echo "Note: All model types (Mistral, TinyLlama, OpenHermes) will use Llama to save space."
     exit 1
 fi
 

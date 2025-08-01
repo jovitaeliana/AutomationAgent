@@ -27,27 +27,22 @@ app.add_middleware(
 MODELS = {
     "mistral": {
         "path": "./models/llama.gguf",
-        "name": "Mistral-7B-Instruct",
+        "name": "Llama-3-8B-Instruct",
         "context_length": 4096
-    },
-    "mistral-large": {
-        "path": "./models/llama.gguf",
-        "name": "Mistral-Large-5K-Instruct",
-        "context_length": 8192
     },
     "llama": {
         "path": "./models/llama.gguf",
-        "name": "Llama-3.1-8B-Instruct",
+        "name": "Llama-3-8B-Instruct",
         "context_length": 4096
     },
     "tinyllama": {
         "path": "./models/llama.gguf",
-        "name": "Mistral-7B-Instruct",
+        "name": "Llama-3-8B-Instruct",
         "context_length": 4096
     },
     "openhermes": {
         "path": "./models/llama.gguf",
-        "name": "Mistral-7B-Instruct",
+        "name": "Llama-3-8B-Instruct",
         "context_length": 4096
     }
 }

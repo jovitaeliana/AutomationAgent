@@ -20,14 +20,12 @@ VITE_GEMINI_API_KEY=your_gemini_api_key
 ### 3. Local Models Setup (for RAG agents)
 ```bash
 # Run the automated setup
-./setup-ubuntu.sh
+./setup-ubuntu.sh OR
+./setup-macos.sh
 
-# Copy your .gguf model files to models/ directory
+# Copy your llama.gguf model file to models/ directory
 mkdir -p models/
-cp /path/to/your/mistral.gguf models/
 cp /path/to/your/llama.gguf models/
-cp /path/to/your/tinyllama.gguf models/
-cp /path/to/your/openhermes.gguf models/
 
 # Start the local model server
 ./start_local_models.sh

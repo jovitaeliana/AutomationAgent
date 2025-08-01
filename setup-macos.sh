@@ -97,27 +97,27 @@ from llama_cpp import Llama
 
 app = FastAPI(title="Local Model Server (macOS)", version="1.0.0")
 
-# Model configurations - Using only Mistral to save space
+# Model configurations - Using only Llama to save space
 MODELS = {
     "mistral": {
-        "path": "./models/mistral.gguf",
-        "name": "Mistral-7B-Instruct",
+        "path": "./models/llama.gguf",
+        "name": "Llama-3-8B-Instruct",
         "context_length": 4096
     },
     # All other models redirect to Mistral to save space
     "llama": {
-        "path": "./models/mistral.gguf",
-        "name": "Mistral-7B-Instruct",
+        "path": "./models/llama.gguf",
+        "name": "Llama-3-8B-Instruct",
         "context_length": 4096
     },
     "tinyllama": {
-        "path": "./models/mistral.gguf",
-        "name": "Mistral-7B-Instruct",
+        "path": "./models/llama.gguf",
+        "name": "Llama-3-8B-Instruct",
         "context_length": 4096
     },
     "openhermes": {
-        "path": "./models/mistral.gguf",
-        "name": "Mistral-7B-Instruct",
+        "path": "./models/llama.gguf",
+        "name": "Llama-3-8B-Instruct",
         "context_length": 4096
     }
 }
@@ -253,15 +253,15 @@ source venv/bin/activate
 echo "📁 Checking for model files..."
 models_found=0
 
-if [ -f "./models/mistral.gguf" ]; then
-    echo "✅ Mistral model found (used for all model types)"
+if [ -f "./models/llama.gguf" ]; then
+    echo "✅ Llama model found (used for all model types)"
     models_found=1
 else
-    echo "⚠️  Mistral model not found in ./models/ directory"
-    echo "Please copy your mistral.gguf file to the models directory:"
-    echo "  - mistral.gguf"
+    echo "⚠️  Llama model not found in ./models/ directory"
+    echo "Please copy your llama.gguf file to the models directory:"
+    echo "  - llama.gguf"
     echo ""
-    echo "Note: All model types (Llama, TinyLlama, OpenHermes) will use Mistral to save space."
+    echo "Note: All model types (Mistral, TinyLlama, OpenHermes) will use Llama to save space."
     exit 1
 fi
 
@@ -278,8 +278,8 @@ echo "🎉 Setup Complete!"
 echo "=================="
 echo ""
 echo "📋 Next Steps:"
-echo "1. Copy your Mistral model file to the ./models/ directory:"
-echo "   - mistral.gguf (used for all model types to save space)"
+echo "1. Copy your Llama model file to the ./models/ directory:"
+echo "   - llama.gguf (used for all model types to save space)"
 echo ""
 echo "2. Start the local model server:"
 echo "   ./start_local_models.sh"

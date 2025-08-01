@@ -22,7 +22,8 @@ The system supports these 4 local models:
 
 ### 1. Run the Setup Script
 ```bash
-./setup-ubuntu.sh
+./setup-ubuntu.sh OR
+./setup-macos.sh
 ```
 
 This script will:
@@ -35,10 +36,7 @@ This script will:
 Copy your `.gguf` model files to the `models/` directory:
 ```bash
 mkdir -p models/
-cp /path/to/your/mistral.gguf models/
-cp /path/to/your/llama.gguf models/
-cp /path/to/your/tinyllama.gguf models/
-cp /path/to/your/openhermes.gguf models/
+cp /path/to/your/llama.gguf model/
 ```
 
 ### 3. Start the Local Model Server
