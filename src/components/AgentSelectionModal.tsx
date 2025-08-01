@@ -13,6 +13,7 @@ const AgentSelectionModal: React.FC<AgentSelectionModalProps> = ({ isOpen, onClo
   const [agents, setAgents] = useState<Agent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isSelecting, setIsSelecting] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -36,12 +37,17 @@ const AgentSelectionModal: React.FC<AgentSelectionModalProps> = ({ isOpen, onClo
   };
 
   const handleSelect = async (agent: Agent) => {
+    if (isSelecting) return; // Prevent double-clicks
+
     try {
+      setIsSelecting(true);
       await onSelect(agent);
       onClose();
     } catch (error) {
       console.error('Error selecting agent:', error);
       setError('Failed to select agent');
+    } finally {
+      setIsSelecting(false);
     }
   };
 
@@ -89,8 +95,8 @@ const AgentSelectionModal: React.FC<AgentSelectionModalProps> = ({ isOpen, onClo
                 {agents.map((agent) => (
                   <div
                     key={agent.id}
-                    className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 cursor-pointer transition-colors"
-                    onClick={() => handleSelect(agent)}
+                    className={`border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors ${isSelecting ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                    onClick={() => !isSelecting && handleSelect(agent)}
                   >
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex-1">
@@ -102,11 +108,16 @@ const AgentSelectionModal: React.FC<AgentSelectionModalProps> = ({ isOpen, onClo
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleSelect(agent);
+                          if (!isSelecting) handleSelect(agent);
                         }}
-                        className="ml-2 px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
+                        disabled={isSelecting}
+                        className={`ml-2 px-3 py-1 text-white text-sm rounded transition-colors ${
+                          isSelecting
+                            ? 'bg-gray-400 cursor-not-allowed'
+                            : 'bg-blue-600 hover:bg-blue-700'
+                        }`}
                       >
-                        Select
+                        {isSelecting ? 'Adding...' : 'Select'}
                       </button>
                     </div>
 

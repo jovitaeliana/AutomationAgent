@@ -78,8 +78,7 @@ def load_model(model_key: str) -> Llama:
             detail=f"Model file not found: {model_path}"
         )
     
-    # Use Metal acceleration on Apple Silicon
-    n_gpu_layers = -1  # Use all layers on Metal
+    n_gpu_layers = 30 
     
     try:
         model = Llama(
