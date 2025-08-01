@@ -5,7 +5,7 @@ import { localModelApi } from '../services/localModelApi';
 import type { Agent } from '../lib/supabase';
 import { isRagAgent } from '../utils/agentUtils';
 
-interface GeminiChatPanelProps {
+interface AgentChatPanelProps {
   nodeId: string;
   agentConfig: Agent | null;
   connectedKnowledgeBaseNodes: string[];
@@ -21,7 +21,7 @@ interface ChatMessage {
   error?: string;
 }
 
-const GeminiChatPanel: React.FC<GeminiChatPanelProps> = ({
+const AgentChatPanel: React.FC<AgentChatPanelProps> = ({
   nodeId,
   agentConfig,
   connectedKnowledgeBaseNodes,
@@ -873,4 +873,4 @@ USER QUESTION: ${finalUserMessage}`;
   );
 };
 
-export default GeminiChatPanel;
+export default AgentChatPanel;
