@@ -47,10 +47,9 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
 
   // State for agent configuration fields
   const [serpApiKey, setSerpApiKey] = useState('');
-  const [geminiApiKey, setGeminiApiKey] = useState('');
   const [searchScope, setSearchScope] = useState('General Web Search');
   const [maxResults, setMaxResults] = useState('10');
-  const [resultProcessing, setResultProcessing] = useState('Summarize with Gemini');
+  const [resultProcessing, setResultProcessing] = useState('Local Model Processing');
   const [customInstructions, setCustomInstructions] = useState('');
   const [filterCriteria, setFilterCriteria] = useState('');
   
@@ -60,7 +59,6 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
 
   // Weather configuration state
   const [weatherOpenWeatherApiKey, setWeatherOpenWeatherApiKey] = useState('');
-  const [weatherGeminiApiKey, setWeatherGeminiApiKey] = useState('');
   const [weatherLocation, setWeatherLocation] = useState('Singapore');
   const [weatherUnits, setWeatherUnits] = useState('Celsius');
   const [weatherMaxResults, setWeatherMaxResults] = useState('10');
@@ -186,10 +184,9 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
     // Check if it's a direct node configuration object with search
     if (config.search) {
       setSerpApiKey(config.search.serpApiKey || '');
-      setGeminiApiKey(config.search.geminiApiKey || '');
       setSearchScope(config.search.searchScope || 'General Web Search');
       setMaxResults(config.search.maxResults?.toString() || '10');
-      setResultProcessing(config.search.resultProcessing || 'Summarize with Gemini');
+      setResultProcessing(config.search.resultProcessing || 'Local Model Processing');
       setCustomInstructions(config.search.customInstructions || '');
       setFilterCriteria(config.search.filterCriteria || '');
       if (!systemPromptEdited) setSystemPrompt(config.systemPrompt || '');
@@ -212,10 +209,9 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
     else if (config.type === 'agent' && config.agent && config.agent.search) {
       const agentConfig = config.agent;
       setSerpApiKey(agentConfig.search.serpApiKey || '');
-      setGeminiApiKey(agentConfig.search.geminiApiKey || '');
       setSearchScope(agentConfig.search.searchScope || 'General Web Search');
       setMaxResults(agentConfig.search.maxResults?.toString() || '10');
-      setResultProcessing(agentConfig.search.resultProcessing || 'Summarize with Gemini');
+      setResultProcessing(agentConfig.search.resultProcessing || 'Local Model Processing');
       setCustomInstructions(agentConfig.search.customInstructions || '');
       setFilterCriteria(agentConfig.search.filterCriteria || '');
       if (!systemPromptEdited) setSystemPrompt(agentConfig.systemPrompt || '');
@@ -239,10 +235,9 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
     else if (config.configuration && config.configuration.search) {
       const agentConfig = config.configuration;
       setSerpApiKey(agentConfig.search.serpApiKey || '');
-      setGeminiApiKey(agentConfig.search.geminiApiKey || '');
       setSearchScope(agentConfig.search.searchScope || 'General Web Search');
       setMaxResults(agentConfig.search.maxResults?.toString() || '10');
-      setResultProcessing(agentConfig.search.resultProcessing || 'Summarize with Gemini');
+      setResultProcessing(agentConfig.search.resultProcessing || 'Local Model Processing');
       setCustomInstructions(agentConfig.search.customInstructions || '');
       setFilterCriteria(agentConfig.search.filterCriteria || '');
       if (!systemPromptEdited) setSystemPrompt(agentConfig.systemPrompt || '');
@@ -280,7 +275,6 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
     else if (config.configuration && config.configuration.weather) {
       const weatherConfig = config.configuration.weather;
       setWeatherOpenWeatherApiKey(weatherConfig.openWeatherApiKey || '');
-      setWeatherGeminiApiKey(weatherConfig.geminiApiKey || '');
       setWeatherLocation(weatherConfig.location || 'Singapore');
       setWeatherUnits(weatherConfig.units || 'Celsius');
       setWeatherMaxResults(weatherConfig.maxResults?.toString() || '10');
@@ -292,7 +286,6 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
     else if (config.type === 'agent' && config.agent && config.agent.weather) {
       const weatherConfig = config.agent.weather;
       setWeatherOpenWeatherApiKey(weatherConfig.openWeatherApiKey || '');
-      setWeatherGeminiApiKey(weatherConfig.geminiApiKey || '');
       setWeatherLocation(weatherConfig.location || 'Singapore');
       setWeatherUnits(weatherConfig.units || 'Celsius');
       setWeatherMaxResults(weatherConfig.maxResults?.toString() || '10');
@@ -313,10 +306,9 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
   // Function to reset configuration form
   const resetConfigurationForm = () => {
     setSerpApiKey('');
-    setGeminiApiKey('');
     setSearchScope('General Web Search');
     setMaxResults('10');
-    setResultProcessing('Summarize with Gemini');
+    setResultProcessing('Local Model Processing');
     setCustomInstructions('');
     setFilterCriteria('');
     setSystemPrompt('');
@@ -334,7 +326,6 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
 
     // Reset weather fields
     setWeatherOpenWeatherApiKey('');
-    setWeatherGeminiApiKey('');
     setWeatherLocation('Singapore');
     setWeatherUnits('Celsius');
     setWeatherMaxResults('10');
@@ -462,8 +453,7 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
         systemPrompt: `"${systemPrompt}"`,
         limitations: `"${limitations}"`,
         ragModel,
-        serpApiKey: serpApiKey ? '[SET]' : '[NOT SET]',
-        geminiApiKey: geminiApiKey ? '[SET]' : '[NOT SET]'
+        serpApiKey: serpApiKey ? '[SET]' : '[NOT SET]'
       });
       
       if (!limitations) {
@@ -514,7 +504,6 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
           preset: 'weather',
           weather: {
             openWeatherApiKey: weatherOpenWeatherApiKey,
-            geminiApiKey: weatherGeminiApiKey,
             location: weatherLocation,
             units: weatherUnits,
             maxResults: parseInt(weatherMaxResults),
@@ -530,7 +519,6 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
           preset: 'search',
           search: {
             serpApiKey,
-            geminiApiKey,
             searchScope,
             maxResults: parseInt(maxResults),
             resultProcessing,
@@ -982,27 +970,19 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
                     ) : isWeatherConfiguration(nodeConfig) ? (
                       // Weather Configuration
                       <>
-                        <h4 className="font-medium text-gray-900 mb-4">Weather Agent Configuration</h4>
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                          <h4 className="text-sm font-medium text-blue-800 mb-2">Weather Agent Configuration</h4>
-                          <p className="text-sm text-blue-700">
-                            This weather agent requires both API keys: OpenWeather for fetching weather data, and Gemini for processing and responding to weather queries with natural language.
-                          </p>
-                        </div>
                         <div className="space-y-4">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <h4 className="text-sm font-medium text-blue-800 mb-2">Weather Agent Configuration</h4>
+                            <p className="text-sm text-blue-700">
+                              This weather agent uses OpenWeather API for fetching weather data and processes responses with the local model server.
+                            </p>
+                          </div>
+                          <div className="grid grid-cols-1 gap-4">
                             <InputField
                               label="OpenWeather API Key *"
                               placeholder="Enter your OpenWeatherMap API key for weather data"
                               value={weatherOpenWeatherApiKey}
                               onChange={setWeatherOpenWeatherApiKey}
-                              type="password"
-                            />
-                            <InputField
-                              label="Gemini API Key *"
-                              placeholder="Enter your Gemini API key to process weather results"
-                              value={weatherGeminiApiKey}
-                              onChange={setWeatherGeminiApiKey}
                               type="password"
                             />
                           </div>
@@ -1041,19 +1021,18 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
                       <>
                         <h4 className="font-medium text-gray-900 mb-4">Search Configuration</h4>
                     <div className="space-y-4">
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                        <h4 className="text-sm font-medium text-green-800 mb-2">Search Agent Configuration</h4>
+                        <p className="text-sm text-green-700">
+                          This search agent uses SerpAPI for fetching search results and processes responses with the local model server.
+                        </p>
+                      </div>
                       <div className="grid grid-cols-1 gap-4">
                         <InputField
                           label="SerpAPI Key *"
                           placeholder="Enter your SerpAPI key"
                           value={serpApiKey}
                           onChange={setSerpApiKey}
-                          type="password"
-                        />
-                        <InputField
-                          label="Gemini API Key *"
-                          placeholder="Enter your Gemini API key"
-                          value={geminiApiKey}
-                          onChange={setGeminiApiKey}
                           type="password"
                         />
                       </div>

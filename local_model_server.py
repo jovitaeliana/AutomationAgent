@@ -17,7 +17,7 @@ app = FastAPI(title="Local Model Server", version="1.0.0")
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["http://localhost:5173", "http://localhost:5174", "http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
@@ -79,7 +79,7 @@ def load_model(model_key: str) -> Llama:
             detail=f"Model file not found: {model_path}"
         )
     
-    n_gpu_layers = 30 
+    n_gpu_layers = 55 
     
     try:
         model = Llama(
@@ -95,7 +95,11 @@ def load_model(model_key: str) -> Llama:
 
 @app.get("/")
 async def root():
-    return {"message": "Local Model Server (macOS Metal) is running"}
+    return {"message": "Local Model Server is running"}
+
+@app.options("/")
+async def root_options():
+    return {"message": "Local Model Server is running"}
 
 @app.get("/models")
 async def list_models():

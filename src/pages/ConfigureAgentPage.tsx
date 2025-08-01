@@ -19,41 +19,34 @@ interface ConfigureAgentPageProps {
 const AdvancedSearchConfigFields: React.FC<{
   serpApiKey: string;
   onSerpApiKeyChange: (value: string) => void;
-  geminiApiKey: string;
-  onGeminiApiKeyChange: (value: string) => void;
   searchScope: string;
   onSearchScopeChange: (value: string) => void;
   customInstructions: string;
   onCustomInstructionsChange: (value: string) => void;
   maxResults: string;
   onMaxResultsChange: (value: string) => void;
-  resultProcessing: string;
-  onResultProcessingChange: (value: string) => void;
   filterCriteria: string;
   onFilterCriteriaChange: (value: string) => void;
 }> = ({
   serpApiKey, onSerpApiKeyChange,
-  geminiApiKey, onGeminiApiKeyChange,
   searchScope, onSearchScopeChange,
   customInstructions, onCustomInstructionsChange,
   maxResults, onMaxResultsChange,
-  resultProcessing, onResultProcessingChange,
   filterCriteria, onFilterCriteriaChange
 }) => (
   <div className="space-y-6">
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+      <h4 className="text-sm font-medium text-green-800 mb-2">Search Agent Configuration</h4>
+      <p className="text-sm text-green-700">
+        This search agent uses SerpAPI for fetching search results and processes responses with the local model server.
+      </p>
+    </div>
+    <div className="grid grid-cols-1 gap-6">
       <InputField
         label="SerpAPI Key *"
         placeholder="Enter your SerpAPI key"
         value={serpApiKey}
         onChange={onSerpApiKeyChange}
-        type="password"
-      />
-      <InputField
-        label="Gemini API Key *"
-        placeholder="Enter your Gemini API key for result processing"
-        value={geminiApiKey}
-        onChange={onGeminiApiKeyChange}
         type="password"
       />
     </div>
@@ -82,18 +75,6 @@ const AdvancedSearchConfigFields: React.FC<{
         value={maxResults}
         onChange={onMaxResultsChange}
         type="number"
-      />
-      <SelectField
-        label="Result Processing"
-        options={[
-          "Summarize with Gemini",
-          "Extract Key Information",
-          "Answer Specific Questions",
-          "Filter by Relevance",
-          "Custom Processing"
-        ]}
-        value={resultProcessing}
-        onChange={onResultProcessingChange}
       />
     </div>
 
@@ -417,19 +398,17 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
   // State for preset-specific fields
   // Weather configuration
   const [openWeatherApiKey, setOpenWeatherApiKey] = useState('');
-  const [weatherGeminiApiKey, setWeatherGeminiApiKey] = useState('');
   const [location, setLocation] = useState('Singapore');
   const [units, setUnits] = useState('Celsius');
   const [weatherMaxResults, setWeatherMaxResults] = useState('10');
   const [weatherCustomInstructions, setWeatherCustomInstructions] = useState('');
-  
+
   // Enhanced search configuration
   const [serpApiKey, setSerpApiKey] = useState('');
-  const [geminiApiKey, setGeminiApiKey] = useState('');
   const [searchScope, setSearchScope] = useState('General Web Search');
   const [customInstructions, setCustomInstructions] = useState('');
   const [maxResults, setMaxResults] = useState('10');
-  const [resultProcessing, setResultProcessing] = useState('Summarize with Gemini');
+  const [resultProcessing, setResultProcessing] = useState('Local Model Processing');
   const [filterCriteria, setFilterCriteria] = useState('');
 
   // Custom RAG configuration
@@ -524,21 +503,12 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
         setTimeout(() => setSaveStatus(''), 3000);
         return;
       }
-      if (!geminiApiKey.trim()) {
-        setSaveStatus('Gemini API key is required for result processing');
-        setTimeout(() => setSaveStatus(''), 3000);
-        return;
-      }
     }
 
     // Validate weather preset requirements
     if (selectedPreset === 'weather') {
       if (!openWeatherApiKey.trim()) {
         showError('Validation Error', 'OpenWeather API key is required for weather functionality');
-        return;
-      }
-      if (!weatherGeminiApiKey.trim()) {
-        showError('Validation Error', 'Gemini API key is required to process weather results');
         return;
       }
     }
@@ -573,7 +543,6 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
       if (selectedPreset === 'weather') {
         configuration.weather = {
           openWeatherApiKey,
-          geminiApiKey: weatherGeminiApiKey,
           location,
           units,
           maxResults: parseInt(weatherMaxResults),
@@ -582,13 +551,12 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
       } else if (selectedPreset === 'search') {
         configuration.search = {
           serpApiKey: serpApiKey,
-          geminiApiKey: geminiApiKey,
           searchScope: searchScope,
           customInstructions: customInstructions,
           maxResults: parseInt(maxResults),
           resultProcessing: resultProcessing,
           filterCriteria: filterCriteria,
-          // Enhanced processing instructions for Gemini
+          // Enhanced processing instructions for local model
           processingPrompt: `Process search results according to these parameters:
 - Scope: ${searchScope}
 - Custom Instructions: ${customInstructions}
@@ -650,17 +618,15 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
         setLimitations('');
         setSelectedPreset(null);
         setOpenWeatherApiKey('');
-        setWeatherGeminiApiKey('');
         setLocation('Singapore');
         setUnits('Celsius');
         setWeatherMaxResults('10');
         setWeatherCustomInstructions('');
         setSerpApiKey('');
-        setGeminiApiKey('');
         setSearchScope('General Web Search');
         setCustomInstructions('');
         setMaxResults('10');
-        setResultProcessing('Summarize with Gemini');
+        setResultProcessing('Local Model Processing');
         setFilterCriteria('');
         setAgentType('LLM Agent');
         setConfigJson('');
@@ -701,7 +667,6 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
     if (selectedPreset === 'weather') {
       return <WeatherConfigFields
         openWeatherApiKey={openWeatherApiKey} onOpenWeatherApiKeyChange={setOpenWeatherApiKey}
-        geminiApiKey={weatherGeminiApiKey} onGeminiApiKeyChange={setWeatherGeminiApiKey}
         location={location} onLocationChange={setLocation}
         units={units} onUnitsChange={setUnits}
         maxResults={weatherMaxResults} onMaxResultsChange={setWeatherMaxResults}
@@ -710,11 +675,9 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
     } else if (selectedPreset === 'search') {
       return <AdvancedSearchConfigFields
         serpApiKey={serpApiKey} onSerpApiKeyChange={setSerpApiKey}
-        geminiApiKey={geminiApiKey} onGeminiApiKeyChange={setGeminiApiKey}
         searchScope={searchScope} onSearchScopeChange={setSearchScope}
         customInstructions={customInstructions} onCustomInstructionsChange={setCustomInstructions}
         maxResults={maxResults} onMaxResultsChange={setMaxResults}
-        resultProcessing={resultProcessing} onResultProcessingChange={setResultProcessing}
         filterCriteria={filterCriteria} onFilterCriteriaChange={setFilterCriteria}
       />;
     } else if (isRagPreset) {
@@ -848,23 +811,25 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
           </SectionCard>
         )}
 
-        <SectionCard title="Limitations & Instructions">
-          <div className="space-y-6">
-            <TextareaField 
-              label="System Prompt" 
-              rows={4} 
-              placeholder="Enter system instructions for the agent..." 
-              value={systemPrompt} 
-              onChange={setSystemPrompt} 
-            />
-            <TextareaField 
-              label="Limitations" 
-              placeholder="Specify any limitations or restrictions..." 
-              value={limitations} 
-              onChange={setLimitations} 
-            />
-          </div>
-        </SectionCard>
+        {selectedPreset && (
+          <SectionCard title="Limitations & Instructions">
+            <div className="space-y-6">
+              <TextareaField
+                label="System Prompt"
+                rows={4}
+                placeholder="Enter system instructions for the agent..."
+                value={systemPrompt}
+                onChange={setSystemPrompt}
+              />
+              <TextareaField
+                label="Limitations"
+                placeholder="Specify any limitations or restrictions..."
+                value={limitations}
+                onChange={setLimitations}
+              />
+            </div>
+          </SectionCard>
+        )}
 
         {/* Save Configuration Button at Bottom */}
         <div className="flex justify-center pt-8">

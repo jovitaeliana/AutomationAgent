@@ -85,13 +85,17 @@ const DatasetTestingPanel: React.FC<DatasetTestingPanelProps> = ({
       return 'local-model'; // Return a placeholder to indicate local model usage
     }
 
-    // For weather agents, use the weather-specific Gemini API key
+    // For weather agents, no Gemini API key needed (uses local model)
     if (isWeatherAgent()) {
-      const { geminiApiKey } = getWeatherApiKeys();
-      if (geminiApiKey) return geminiApiKey;
+      return 'local-model'; // Return a placeholder to indicate local model usage
     }
 
-    // Check different possible locations for API key
+    // For search agents, no Gemini API key needed (uses local model)
+    if (isSearchAgent()) {
+      return 'local-model'; // Return a placeholder to indicate local model usage
+    }
+
+    // Check different possible locations for API key for other agents
     const config = agentConfig.configuration;
     return config.geminiApiKey ||
            config.search?.geminiApiKey ||
@@ -105,7 +109,7 @@ const DatasetTestingPanel: React.FC<DatasetTestingPanelProps> = ({
   };
 
   const hasSearchCapability = (): boolean => {
-    return !!(getSerpApiKey() && getApiKey());
+    return !!getSerpApiKey(); // Only need SerpAPI key, local model handles the rest
   };
 
   // Helper function to check if this is a weather agent
@@ -116,20 +120,41 @@ const DatasetTestingPanel: React.FC<DatasetTestingPanelProps> = ({
            !!agentConfig.configuration.weather;
   };
 
+  // Helper function to check if this is a search agent
+  const isSearchAgent = (): boolean => {
+    if (!agentConfig?.configuration) return false;
+
+    return agentConfig.configuration.preset === 'search' ||
+           !!agentConfig.configuration.search;
+  };
+
+  // Helper function to check if agent can function (has required keys or uses local model)
+  const canAgentFunction = (): boolean => {
+    if (isRagAgent(agentConfig)) {
+      return true; // RAG agents use local model, no API key needed
+    }
+    if (isWeatherAgent() && hasWeatherCapability()) {
+      return true; // Weather agents only need OpenWeather API key
+    }
+    if (isSearchAgent() && hasSearchCapability()) {
+      return true; // Search agents only need SerpAPI key
+    }
+    return !!getApiKey(); // Other agents need Gemini API key
+  };
+
   // Helper function to get weather API keys
-  const getWeatherApiKeys = (): { openWeatherApiKey: string | null; geminiApiKey: string | null } => {
-    if (!agentConfig?.configuration?.weather) return { openWeatherApiKey: null, geminiApiKey: null };
+  const getWeatherApiKeys = (): { openWeatherApiKey: string | null } => {
+    if (!agentConfig?.configuration?.weather) return { openWeatherApiKey: null };
 
     const weatherConfig = agentConfig.configuration.weather;
     return {
-      openWeatherApiKey: weatherConfig.openWeatherApiKey || null,
-      geminiApiKey: weatherConfig.geminiApiKey || null
+      openWeatherApiKey: weatherConfig.openWeatherApiKey || null
     };
   };
 
   const hasWeatherCapability = (): boolean => {
-    const { openWeatherApiKey, geminiApiKey } = getWeatherApiKeys();
-    return !!(openWeatherApiKey && geminiApiKey);
+    const { openWeatherApiKey } = getWeatherApiKeys();
+    return !!openWeatherApiKey; // Only need OpenWeather API key, local model handles the rest
   };
 
   const getSystemPrompt = (): string => {
@@ -378,14 +403,13 @@ Answer: 4`;
   };
 
   const performWeatherQuery = async (): Promise<string> => {
-    const { openWeatherApiKey, geminiApiKey } = getWeatherApiKeys();
+    const { openWeatherApiKey } = getWeatherApiKeys();
     console.log('Weather API keys check:', {
-      hasOpenWeatherKey: !!openWeatherApiKey,
-      hasGeminiKey: !!geminiApiKey
+      hasOpenWeatherKey: !!openWeatherApiKey
     });
 
-    if (!openWeatherApiKey || !geminiApiKey) {
-      throw new Error('Weather API keys not found in agent configuration');
+    if (!openWeatherApiKey) {
+      throw new Error('OpenWeather API key not found in agent configuration');
     }
 
     try {
@@ -475,7 +499,119 @@ IMPORTANT: Answer this question using the authoritative knowledge base informati
         return response;
       }
 
-      // For non-RAG agents, continue with Gemini API
+      // Check if this is a weather or search agent - use local model instead of Gemini
+      const isWeatherAgentCheck = isWeatherAgent();
+      const isSearchAgentCheck = isSearchAgent();
+      const hasWeatherCapabilityCheck = hasWeatherCapability();
+      const hasSearchCapabilityCheck = hasSearchCapability();
+
+      if ((isWeatherAgentCheck && hasWeatherCapabilityCheck) || (isSearchAgentCheck && hasSearchCapabilityCheck)) {
+        try {
+          const systemPrompt = getSystemPrompt();
+          const ragModel = 'Mistral-7B-Instruct'; // Use Mistral for weather/search agents
+
+          // Prepare messages with system prompt
+          const messages: Array<{role: 'system' | 'user' | 'assistant', content: string}> = [
+            { role: 'system', content: systemPrompt }
+          ];
+
+          // Process MCQ questions to extract textual options
+          const { cleanQuestion, textualOptions } = processMCQQuestion(question);
+          let finalQuestion = cleanQuestion;
+
+          // Add textual options if this is an MCQ
+          if (textualOptions.length > 0) {
+            finalQuestion += `\n\nOptions: ${textualOptions.join(', ')}`;
+          }
+
+          let contextData = '';
+
+          // Handle weather agent
+          if (isWeatherAgentCheck && hasWeatherCapabilityCheck && weatherService.isWeatherQuery(question)) {
+            console.log('Processing weather query with local model:', question);
+            try {
+              const weatherData = await performWeatherQuery();
+              const weatherConfig = agentConfig?.configuration?.weather;
+
+              contextData = `Current Weather Data:
+${weatherData}
+
+Instructions: You are a weather assistant. Use the current weather data above to provide a helpful and accurate response to the user's weather query.
+
+IMPORTANT GUIDELINES:
+1. Provide specific weather information based on the current data
+2. Include temperature, conditions, and relevant details
+3. If asked about clothing or activities, make practical recommendations based on the weather
+4. Be conversational and helpful in your response
+5. Include forecast information when relevant to the query
+
+${weatherConfig?.customInstructions || ''}`;
+
+              finalQuestion = `User Query: ${finalQuestion}
+
+${contextData}
+
+Answer the user's weather question using the current weather data provided above.`;
+            } catch (weatherError) {
+              console.error('Weather query failed:', weatherError);
+              finalQuestion = `${finalQuestion}
+
+Note: Weather data is currently unavailable. Please provide a general response about weather or suggest checking a weather service.`;
+            }
+          }
+
+          // Handle search agent
+          else if (isSearchAgentCheck && hasSearchCapabilityCheck && shouldPerformSearch(question)) {
+            console.log('Processing search query with local model:', question);
+            try {
+              const searchResults = await performSearch(question);
+              const searchConfig = agentConfig?.configuration?.search;
+
+              contextData = `Search Results:
+${searchResults}
+
+Instructions: You are a search assistant. Use the search results above to provide a helpful and accurate response to the user's query.
+
+IMPORTANT GUIDELINES:
+1. Provide information based on the search results
+2. Cite relevant sources when possible
+3. Be accurate and factual in your response
+4. If the search results don't contain relevant information, say so
+5. Summarize key findings clearly
+
+${searchConfig?.customInstructions || ''}`;
+
+              finalQuestion = `User Query: ${finalQuestion}
+
+${contextData}
+
+Answer the user's question using the search results provided above.`;
+            } catch (searchError) {
+              console.error('Search query failed:', searchError);
+              finalQuestion = `${finalQuestion}
+
+Note: Search functionality is currently unavailable. Please provide a general response or suggest alternative ways to find the information.`;
+            }
+          }
+
+          messages.push({ role: 'user', content: finalQuestion });
+
+          // Use local model API
+          const response = await localModelApi.generateChatCompletion({
+            model: ragModel,
+            messages: messages,
+            temperature: 0.7,
+            max_tokens: 1024
+          });
+
+          return response;
+        } catch (error) {
+          console.error('Local model API error for weather/search agent:', error);
+          throw new Error(`Local model error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      // For other agents, continue with Gemini API
       const systemPrompt = getLocalRagTestingSystemPrompt(); // Use simpler prompt for better MCQ handling
 
       // Process MCQ questions to extract textual options
@@ -487,7 +623,7 @@ IMPORTANT: Answer this question using the authoritative knowledge base informati
         finalQuestion += `\n\nOptions: ${textualOptions.join(', ')}`;
       }
 
-      // Get relevant knowledge base context
+      // For regular Gemini agents, add knowledge base context if available
       let knowledgeContext = '';
       try {
         knowledgeContext = await knowledgeBaseRAGService.getRelevantContext(
@@ -499,92 +635,8 @@ IMPORTANT: Answer this question using the authoritative knowledge base informati
         console.error('Error retrieving knowledge base context:', error);
       }
 
-      // Check if this is a weather agent first
-      const isWeatherAgentCheck = isWeatherAgent();
-      const hasWeatherCapabilityCheck = hasWeatherCapability();
-
-      // Only check for weather queries if this is actually a weather agent
-      if (isWeatherAgentCheck && hasWeatherCapabilityCheck) {
-        const isWeatherQueryCheck = weatherService.isWeatherQuery(question);
-
-        console.log('Weather agent checks:', {
-          isWeatherAgent: isWeatherAgentCheck,
-          hasWeatherCapability: hasWeatherCapabilityCheck,
-          isWeatherQuery: isWeatherQueryCheck,
-          question
-        });
-
-        if (isWeatherQueryCheck) {
-        console.log('Processing weather query:', question);
-        try {
-          const weatherData = await performWeatherQuery();
-          const weatherConfig = agentConfig?.configuration?.weather;
-
-          finalQuestion = `User Query: ${question}
-
-Current Weather Data:
-${weatherData}${knowledgeContext}
-
-Instructions: ${knowledgeContext ? 'PRIORITY: Use the authoritative knowledge base information above as your primary source. If the knowledge base contains relevant information, use it to answer the question regardless of any training limitations. ' : ''}You are a weather assistant. Use the current weather data above to provide a helpful and accurate response to the user's weather query.
-
-IMPORTANT GUIDELINES:
-1. Provide specific weather information based on the current data
-2. Include temperature, conditions, and relevant details
-3. If asked about clothing or activities, make practical recommendations based on the weather
-4. Be conversational and helpful in your response
-5. Include forecast information when relevant to the query
-
-${weatherConfig?.customInstructions || ''}
-
-Answer the user's weather question using the current weather data provided above${knowledgeContext ? ' and any relevant knowledge base information' : ''}.`;
-
-          console.log('Weather prompt prepared for Gemini:', {
-            originalQuestion: question,
-            weatherDataLength: weatherData.length,
-            hasCustomInstructions: !!weatherConfig?.customInstructions
-          });
-        } catch (weatherError) {
-          // If weather query fails, continue with original message but mention the weather failure
-          finalQuestion = `${question}${knowledgeContext}
-
-Note: I attempted to get current weather information but encountered an error: ${weatherError instanceof Error ? weatherError.message : 'Weather data unavailable'}. ${knowledgeContext ? 'IMPORTANT: Use the authoritative knowledge base information above to answer the question. The knowledge base overrides any training limitations.' : 'I\'ll provide a response based on my general knowledge.'}`;
-        }
-        }
-      }
-      // Check if we should perform a search (same logic as chat interface)
-      else if (shouldPerformSearch(question)) {
-        try {
-          const searchResults = await performSearch(question);
-          const searchConfig = agentConfig?.configuration?.search;
-
-          finalQuestion = `User Query: ${question}
-
-Current Search Results:
-${searchResults}${knowledgeContext}
-
-Instructions: ${knowledgeContext ? 'PRIORITY: Use the authoritative knowledge base information above as your primary source. If the knowledge base contains relevant information, use it to answer the question regardless of any training limitations. ' : ''}You must provide a definitive and helpful answer based on the search results above${knowledgeContext ? ' and the authoritative knowledge base' : ''}.
-
-IMPORTANT GUIDELINES:
-1. Give specific recommendations from the search results, even if exact ratings aren't mentioned
-2. Provide at least 1-2 concrete examples with names, locations, and available details
-3. Use confident language like "Based on current search results, I recommend..." rather than "I cannot definitively identify"
-4. If exact ratings aren't available, mention other positive indicators (reviews, popularity, descriptions, or being featured in search results)
-5. Include practical details like addresses, opening hours, or contact info when available
-6. Be helpful and decisive while acknowledging your source is from current search data
-
-${searchConfig?.customInstructions || ''}
-${searchConfig?.filterCriteria ? `Filter Criteria: ${searchConfig.filterCriteria}` : ''}
-
-Answer the user's question directly and helpfully using ${knowledgeContext ? 'FIRST the authoritative knowledge base information, then supplement with ' : ''}the current search results.`;
-        } catch (searchError) {
-          // If search fails, continue with original message but mention the search failure
-          finalQuestion = `${question}${knowledgeContext}
-
-Note: I attempted to search for current information but encountered an error: ${searchError instanceof Error ? searchError.message : 'Search unavailable'}. ${knowledgeContext ? 'IMPORTANT: Use the authoritative knowledge base information above to answer the question. The knowledge base overrides any training limitations.' : 'I\'ll provide a response based on my general knowledge.'}`;
-        }
-      } else if (knowledgeContext) {
-        // If no search is needed but we have knowledge base context, include it
-        finalQuestion = `${question}${knowledgeContext}
+      if (knowledgeContext) {
+        finalQuestion = `${finalQuestion}${knowledgeContext}
 
 IMPORTANT: Answer this question using the authoritative knowledge base information above. The knowledge base contains verified information that overrides any training limitations. If the answer is in the knowledge base, provide it confidently.`;
       }
@@ -1095,7 +1147,7 @@ IMPORTANT: Answer this question using the authoritative knowledge base informati
                 {!isRunning && !isPaused ? (
                   <button
                     onClick={startTesting}
-                    disabled={!getApiKey()}
+                    disabled={!canAgentFunction()}
                     className="flex items-center space-x-2 px-3 py-2 bg-primary text-white rounded hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Play size={16} />
@@ -1104,7 +1156,7 @@ IMPORTANT: Answer this question using the authoritative knowledge base informati
                 ) : isPaused ? (
                   <button
                     onClick={resumeTesting}
-                    disabled={!getApiKey()}
+                    disabled={!canAgentFunction()}
                     className="flex items-center space-x-2 px-3 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Play size={16} />
@@ -1129,12 +1181,27 @@ IMPORTANT: Answer this question using the authoritative knowledge base informati
                 </button>
               </div>
 
-              {!getApiKey() && (
+              {!getApiKey() && !isRagAgent(agentConfig) && !isWeatherAgent() && !isSearchAgent() && (
                 <div className="text-sm text-red-600 bg-red-50 p-2 rounded">
-                  ⚠️ {isRagAgent(agentConfig)
-                    ? 'No HuggingFace token found in agent configuration. Please configure the agent first.'
-                    : 'No Gemini API key found in agent configuration. Please configure the agent first.'
-                  }
+                  ⚠️ No Gemini API key found in agent configuration. Please configure the agent first.
+                </div>
+              )}
+
+              {isRagAgent(agentConfig) && !getApiKey() && (
+                <div className="text-sm text-red-600 bg-red-50 p-2 rounded">
+                  ⚠️ No HuggingFace token found in agent configuration. Please configure the agent first.
+                </div>
+              )}
+
+              {isWeatherAgent() && !hasWeatherCapability() && (
+                <div className="text-sm text-red-600 bg-red-50 p-2 rounded">
+                  ⚠️ No OpenWeather API key found in agent configuration. Please configure the agent first.
+                </div>
+              )}
+
+              {isSearchAgent() && !hasSearchCapability() && (
+                <div className="text-sm text-red-600 bg-red-50 p-2 rounded">
+                  ⚠️ No SerpAPI key found in agent configuration. Please configure the agent first.
                 </div>
               )}
 

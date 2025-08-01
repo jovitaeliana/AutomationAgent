@@ -5,8 +5,6 @@ import { InputField, SelectField, TextareaField } from './FormField';
 interface WeatherConfigProps {
   openWeatherApiKey: string;
   onOpenWeatherApiKeyChange: (value: string) => void;
-  geminiApiKey: string;
-  onGeminiApiKeyChange: (value: string) => void;
   location: string;
   onLocationChange: (value: string) => void;
   units: string;
@@ -18,7 +16,6 @@ interface WeatherConfigProps {
 }
 export const WeatherConfigFields: React.FC<WeatherConfigProps> = ({
   openWeatherApiKey, onOpenWeatherApiKeyChange,
-  geminiApiKey, onGeminiApiKeyChange,
   location, onLocationChange,
   units, onUnitsChange,
   maxResults, onMaxResultsChange,
@@ -28,23 +25,16 @@ export const WeatherConfigFields: React.FC<WeatherConfigProps> = ({
     <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
       <h4 className="text-sm font-medium text-blue-800 mb-2">Weather Agent Configuration</h4>
       <p className="text-sm text-blue-700">
-        This weather agent requires both API keys: OpenWeather for fetching weather data, and Gemini for processing and responding to weather queries with natural language.
+        This weather agent uses OpenWeather API for fetching weather data and processes responses with the local model server.
       </p>
     </div>
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div className="grid grid-cols-1 gap-6">
       <InputField
         label="OpenWeather API Key *"
         type="password"
         placeholder="Enter your OpenWeatherMap API key for weather data"
         value={openWeatherApiKey}
         onChange={onOpenWeatherApiKeyChange}
-      />
-      <InputField
-        label="Gemini API Key *"
-        type="password"
-        placeholder="Enter your Gemini API key to process weather results"
-        value={geminiApiKey}
-        onChange={onGeminiApiKeyChange}
       />
     </div>
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
