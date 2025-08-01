@@ -389,20 +389,7 @@ Context from knowledge base:${combinedContext}
 IMPORTANT: Follow your system limitations strictly. If the question is outside your designated scope, respond appropriately. When relevant context is available, use it to answer the question.`;
         }
 
-        // Add final restriction check before processing - UNIVERSAL FOR ALL AGENTS
-        const config = agentConfig?.configuration;
-        if (config?.limitations) {
-          let allowedTopic = config.limitations.toLowerCase()
-            .replace('only answer enquiries to do with ', '')
-            .replace('only answer questions about ', '')
-            .replace(' and do not answer others', '')
-            .replace(' and nothing else', '')
-            .trim();
-          
-          finalMessage = `SYSTEM INSTRUCTION: Before answering, check if this question is about "${allowedTopic}". If it is NOT about "${allowedTopic}", respond with exactly: "I can only assist with ${allowedTopic}. This question is outside my area of expertise." If it IS about "${allowedTopic}", answer normally.
-
-USER QUESTION: ${finalMessage}`;
-        }
+        // System prompt already handles limitations, no need for additional instructions
 
         messages.push({ role: 'user', content: finalMessage });
 
@@ -450,22 +437,11 @@ USER QUESTION: ${finalMessage}`;
             contextData = `Current Weather Data:
 ${weatherData}
 
-Instructions: You are a weather assistant. Use the current weather data above to provide a helpful and accurate response to the user's weather query.
-
-IMPORTANT GUIDELINES:
-1. Provide specific weather information based on the current data
-2. Include temperature, conditions, and relevant details
-3. If asked about clothing or activities, make practical recommendations based on the weather
-4. Be conversational and helpful in your response
-5. Include forecast information when relevant to the query
-
 ${weatherConfig?.customInstructions || ''}`;
 
-            finalMessage = `User Query: ${userMessage}
+            finalMessage = `${userMessage}
 
-${contextData}
-
-Answer the user's weather question using the current weather data provided above.`;
+Context: ${contextData}`;
           } catch (weatherError) {
             console.error('Weather query failed:', weatherError);
             finalMessage = `${userMessage}
@@ -484,22 +460,11 @@ Note: Weather data is currently unavailable. Please provide a general response a
             contextData = `Search Results:
 ${searchResults}
 
-Instructions: You are a search assistant. Use the search results above to provide a helpful and accurate response to the user's query.
-
-IMPORTANT GUIDELINES:
-1. Provide information based on the search results
-2. Cite relevant sources when possible
-3. Be accurate and factual in your response
-4. If the search results don't contain relevant information, say so
-5. Summarize key findings clearly
-
 ${searchConfig?.customInstructions || ''}`;
 
-            finalMessage = `User Query: ${userMessage}
+            finalMessage = `${userMessage}
 
-${contextData}
-
-Answer the user's question using the search results provided above.`;
+Context: ${contextData}`;
           } catch (searchError) {
             console.error('Search query failed:', searchError);
             finalMessage = `${userMessage}
@@ -508,20 +473,7 @@ Note: Search functionality is currently unavailable. Please provide a general re
           }
         }
 
-        // Add final restriction check before processing - UNIVERSAL FOR ALL AGENTS
-        const config = agentConfig?.configuration;
-        if (config?.limitations) {
-          let allowedTopic = config.limitations.toLowerCase()
-            .replace('only answer enquiries to do with ', '')
-            .replace('only answer questions about ', '')
-            .replace(' and do not answer others', '')
-            .replace(' and nothing else', '')
-            .trim();
-          
-          finalMessage = `SYSTEM INSTRUCTION: Before answering, check if this question is about "${allowedTopic}". If it is NOT about "${allowedTopic}", respond with exactly: "I can only assist with ${allowedTopic}. This question is outside my area of expertise." If it IS about "${allowedTopic}", answer normally.
-
-USER QUESTION: ${finalMessage}`;
-        }
+        // System prompt already handles limitations, no need for additional instructions
 
         messages.push({ role: 'user', content: finalMessage });
 
