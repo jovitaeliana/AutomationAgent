@@ -7,7 +7,7 @@ import RecentProjects from '../components/RecentProjects';
 import GuidedTour from '../components/GuidedTour';
 
 // Define the page names type
-type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'agent-creation' | 'deployment-status';
+type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'flow-creation' | 'deployment-status';
 
 interface HomePageProps {
   onNavigate: (page: PageName) => void;
@@ -68,7 +68,7 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
                 icon={<FlowIcon />}
                 title="Create New Flow"
                 description="Design visual workflow diagrams"
-                onClick={() => onNavigate('agent-creation')}
+                onClick={() => onNavigate('flow-creation')}
               />
             </div>
           </div>

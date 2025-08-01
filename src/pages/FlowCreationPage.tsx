@@ -11,12 +11,12 @@ import DatasetSelectionModal from '../components/DatasetSelectionModal';
 import AgentSelectionModal from '../components/AgentSelectionModal';
 import DatasetTestingPanel from '../components/DatasetTestingPanel';
 import KnowledgeBaseUploadModal from '../components/KnowledgeBaseUploadModal';
-import GeminiChatPanel from '../components/GeminiChatPanel';
+import GeminiChatPanel from '../components/AgentChatPanel';
 import { flowService, availableNodesService, nodeConfigService, knowledgeBaseService, agentKnowledgeBaseService } from '../services/api';
 import type { Dataset, Agent } from '../lib/supabase';
 
 // Define the page names type
-type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'agent-creation' | 'deployment-status';
+type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'flow-creation' | 'deployment-status';
 
 interface AgentCreationPageProps {
   onNavigate: (page: PageName) => void;

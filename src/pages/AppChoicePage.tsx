@@ -4,7 +4,7 @@ import TemplateSelectionCard from '../components/TemplateSelectionCard';
 import { ChatbotIcon, AvatarIcon } from '../components/Icons';
 
 // Define the page names type
-type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'agent-creation' | 'deployment-status';
+type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'flow-creation' | 'deployment-status';
 
 interface AppChoicePageProps {
   onNavigate: (page: PageName) => void;
@@ -63,7 +63,7 @@ const AppChoicePage: React.FC<AppChoicePageProps> = ({ onNavigate }) => {
         {/* Footer Actions */}
         <div className="mt-12 pt-6 border-t border-app-border flex justify-end items-center space-x-4">
           <button
-            onClick={() => onNavigate('agent-creation')}
+            onClick={() => onNavigate('flow-creation')}
             className="px-6 py-2 bg-secondary text-app-text font-semibold rounded-lg hover:bg-secondary-hover transition-colors"
           >
             Back

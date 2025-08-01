@@ -9,7 +9,7 @@ import { presetService, agentService } from '../services/api';
 import { useToast } from '../components/ToastContainer';
 import type { Preset, Agent } from '../lib/supabase';
 
-type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'agent-creation' | 'deployment-status';
+type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'flow-creation' | 'deployment-status';
 
 interface ConfigureAgentPageProps {
   onNavigate: (page: PageName) => void;
@@ -740,7 +740,7 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-app-bg-highlight to-app-bg text-app-text font-sans">
-      <PageHeader title="Configure Agent" subtitle="Set up and customize your automation agent">
+      <PageHeader title="Configure Agent" subtitle="Set up and customise your automation agent">
         <div className="flex items-center space-x-4">
           <button 
             type="button" 

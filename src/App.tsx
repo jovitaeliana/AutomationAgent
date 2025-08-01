@@ -4,19 +4,19 @@ import HomePage from './pages/HomePage';
 import ConfigureAgentPage from './pages/ConfigureAgentPage';
 import AppChoicePage from './pages/AppChoicePage';
 import UploadDatasetPage from './pages/UploadDatasetPage';
-import AgentCreationPage from './pages/AgentCreationPage';
+import AgentCreationPage from './pages/FlowCreationPage';
 import UploadTestingFilePage from './pages/DatasetTestingPage';
 import DeploymentStatusPage from './pages/DeploymentStatusPage';
 import { ToastProvider } from './components/ToastContainer';
 
-type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'agent-creation' | 'deployment-status';
+type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'flow-creation' | 'deployment-status';
 
 function App() {
   const [page, setPage] = useState<PageName>('home');
 
   useEffect(() => {
     const hash = window.location.hash.slice(1) as PageName;
-    const validPages: PageName[] = ['home', 'configure', 'choice', 'dataset-testing', 'upload-dataset', 'agent-creation', 'deployment-status'];
+    const validPages: PageName[] = ['home', 'configure', 'choice', 'dataset-testing', 'upload-dataset', 'flow-creation', 'deployment-status'];
     if (validPages.includes(hash)) {
       setPage(hash);
     }
@@ -26,7 +26,7 @@ function App() {
   useEffect(() => {
     const handlePopState = () => {
       const hash = window.location.hash.slice(1) as PageName;
-      const validPages: PageName[] = ['home', 'configure', 'choice', 'dataset-testing', 'upload-dataset', 'agent-creation', 'deployment-status'];
+      const validPages: PageName[] = ['home', 'configure', 'choice', 'dataset-testing', 'upload-dataset', 'flow-creation', 'deployment-status'];
       if (validPages.includes(hash)) {
         setPage(hash);
       } else {
@@ -59,7 +59,7 @@ function App() {
         return <UploadTestingFilePage />;
       case 'upload-dataset':
         return <UploadDatasetPage onNavigate={navigate} />;
-      case 'agent-creation':
+      case 'flow-creation':
         return <AgentCreationPage onNavigate={navigate} />;
       case 'deployment-status':
         return <DeploymentStatusPage onNavigate={navigate} />;
@@ -79,7 +79,7 @@ function App() {
           <button onClick={() => navigate('choice')} className="ml-4 underline opacity-80 hover:opacity-100">App Choice</button>
           <button onClick={() => navigate('dataset-testing')} className="ml-4 underline opacity-80 hover:opacity-100">Upload Test Files</button>
           <button onClick={() => navigate('upload-dataset')} className="ml-4 underline opacity-80 hover:opacity-100">Upload Dataset</button>
-          <button onClick={() => navigate('agent-creation')} className="ml-4 underline opacity-80 hover:opacity-100">Agent Creation</button>
+          <button onClick={() => navigate('flow-creation')} className="ml-4 underline opacity-80 hover:opacity-100">Agent Creation</button>
         </nav> */}
 
         {/* Render the active page */}

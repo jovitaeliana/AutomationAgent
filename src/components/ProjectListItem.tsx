@@ -1,7 +1,7 @@
 import React from 'react';
 
 // Define the page names type
-type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'agent-creation';
+type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'flow-creation';
 
 const Tag: React.FC<{ label: string }> = ({ label }) => (
   <span className="text-xs font-medium bg-secondary text-app-text px-3 py-1 rounded-full">

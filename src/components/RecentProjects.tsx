@@ -4,7 +4,7 @@ import { automationService, ragModelService } from '../services/api';
 import type { Automation, RagModel } from '../lib/supabase';
 
 // Define the page names type
-type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'agent-creation';
+type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'flow-creation';
 
 // Add props interface for navigation
 interface RecentProjectsProps {

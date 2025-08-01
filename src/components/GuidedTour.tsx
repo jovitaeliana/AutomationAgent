@@ -10,7 +10,7 @@ interface TourStep {
   action?: () => void;
 }
 
-type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'agent-creation' | 'deployment-status';
+type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'flow-creation' | 'deployment-status';
 
 interface GuidedTourProps {
   isOpen: boolean;
