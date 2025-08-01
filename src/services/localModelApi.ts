@@ -131,7 +131,7 @@ class LocalModelApiService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+        throw new Error(`Local model error: HTTP ${response.status} - ${errorText}`);
       }
 
       const data: ChatResponse = await response.json();

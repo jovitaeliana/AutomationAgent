@@ -355,8 +355,10 @@ ABSOLUTE REQUIREMENTS:
   };
 
   const callGeminiAPI = async (userMessage: string, conversationHistory: ChatMessage[]): Promise<string> => {
+    const isRag = isRagAgent(agentConfig);
+
     // Check if this is a RAG agent - use local model instead
-    if (isRagAgent(agentConfig)) {
+    if (isRag) {
       try {
         // Get system prompt and knowledge base context
         const systemPrompt = getSystemPrompt();
@@ -408,7 +410,7 @@ IMPORTANT: Follow your system limitations strictly. If the question is outside y
         return response;
       } catch (error) {
         console.error('Local model API error:', error);
-        throw new Error(`Local model API error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        throw new Error(`Local model error: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     }
 
@@ -615,7 +617,8 @@ IMPORTANT: Answer this question using the authoritative knowledge base informati
 
       return data.candidates[0].content.parts[0].text.trim();
     } catch (error) {
-      throw new Error(`Gemini API error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      const errorPrefix = isRag ? 'Local model error' : 'Gemini API error';
+      throw new Error(`${errorPrefix}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 

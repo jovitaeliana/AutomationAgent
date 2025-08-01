@@ -97,26 +97,27 @@ from llama_cpp import Llama
 
 app = FastAPI(title="Local Model Server (macOS)", version="1.0.0")
 
-# Model configurations
+# Model configurations - Using only Mistral to save space
 MODELS = {
     "mistral": {
         "path": "./models/mistral.gguf",
         "name": "Mistral-7B-Instruct",
         "context_length": 4096
     },
+    # All other models redirect to Mistral to save space
     "llama": {
-        "path": "./models/llama.gguf", 
-        "name": "Llama-3-8B-Instruct",
+        "path": "./models/mistral.gguf",
+        "name": "Mistral-7B-Instruct",
         "context_length": 4096
     },
     "tinyllama": {
-        "path": "./models/tinyllama.gguf",
-        "name": "TinyLlama-1.1B-Chat", 
-        "context_length": 2048
+        "path": "./models/mistral.gguf",
+        "name": "Mistral-7B-Instruct",
+        "context_length": 4096
     },
     "openhermes": {
-        "path": "./models/openhermes.gguf",
-        "name": "OpenHermes-2.5-Mistral",
+        "path": "./models/mistral.gguf",
+        "name": "Mistral-7B-Instruct",
         "context_length": 4096
     }
 }
@@ -253,32 +254,14 @@ echo "📁 Checking for model files..."
 models_found=0
 
 if [ -f "./models/mistral.gguf" ]; then
-    echo "✅ Mistral model found"
-    ((models_found++))
-fi
-
-if [ -f "./models/llama.gguf" ]; then
-    echo "✅ Llama model found"
-    ((models_found++))
-fi
-
-if [ -f "./models/tinyllama.gguf" ]; then
-    echo "✅ TinyLlama model found"
-    ((models_found++))
-fi
-
-if [ -f "./models/openhermes.gguf" ]; then
-    echo "✅ OpenHermes model found"
-    ((models_found++))
-fi
-
-if [ $models_found -eq 0 ]; then
-    echo "⚠️  No model files found in ./models/ directory"
-    echo "Please copy your .gguf files to the models directory:"
+    echo "✅ Mistral model found (used for all model types)"
+    models_found=1
+else
+    echo "⚠️  Mistral model not found in ./models/ directory"
+    echo "Please copy your mistral.gguf file to the models directory:"
     echo "  - mistral.gguf"
-    echo "  - llama.gguf" 
-    echo "  - tinyllama.gguf"
-    echo "  - openhermes.gguf"
+    echo ""
+    echo "Note: All model types (Llama, TinyLlama, OpenHermes) will use Mistral to save space."
     exit 1
 fi
 
@@ -295,11 +278,8 @@ echo "🎉 Setup Complete!"
 echo "=================="
 echo ""
 echo "📋 Next Steps:"
-echo "1. Copy your .gguf model files to the ./models/ directory:"
-echo "   - mistral.gguf (your Mistral model)"
-echo "   - llama.gguf (your Llama model)"
-echo "   - tinyllama.gguf (your TinyLlama model)"
-echo "   - openhermes.gguf (your OpenHermes model)"
+echo "1. Copy your Mistral model file to the ./models/ directory:"
+echo "   - mistral.gguf (used for all model types to save space)"
 echo ""
 echo "2. Start the local model server:"
 echo "   ./start_local_models.sh"

@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from llama_cpp import Llama
 
-app = FastAPI(title="Local Model Server (macOS)", version="1.0.0")
+app = FastAPI(title="Local Model Server", version="1.0.0")
 
 # Add CORS middleware
 app.add_middleware(
@@ -23,26 +23,27 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Model configurations
+# Model configurations - Using only Mistral to save space
 MODELS = {
     "mistral": {
         "path": "./models/mistral.gguf",
         "name": "Mistral-7B-Instruct",
         "context_length": 4096
     },
+    # All other models redirect to Mistral to save space
     "llama": {
-        "path": "./models/llama.gguf", 
-        "name": "Llama-3-8B-Instruct",
+        "path": "./models/mistral.gguf",
+        "name": "Mistral-7B-Instruct",
         "context_length": 4096
     },
     "tinyllama": {
-        "path": "./models/tinyllama.gguf",
-        "name": "TinyLlama-1.1B-Chat", 
-        "context_length": 2048
+        "path": "./models/mistral.gguf",
+        "name": "Mistral-7B-Instruct",
+        "context_length": 4096
     },
     "openhermes": {
-        "path": "./models/openhermes.gguf",
-        "name": "OpenHermes-2.5-Mistral",
+        "path": "./models/mistral.gguf",
+        "name": "Mistral-7B-Instruct",
         "context_length": 4096
     }
 }
@@ -154,7 +155,7 @@ async def chat(request: ChatRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    print("🚀 Starting Local Model Server (macOS Metal)...")
+    print("🚀 Starting Local Model Server...")
     print("📍 Server will be available at http://localhost:8000")
     print("📚 API docs available at http://localhost:8000/docs")
     uvicorn.run(app, host="0.0.0.0", port=8000)

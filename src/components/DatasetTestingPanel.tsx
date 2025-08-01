@@ -417,9 +417,11 @@ Answer: 4`;
   };
 
   const callGeminiAPI = async (question: string, apiKey: string): Promise<string> => {
+    const isRag = isRagAgent(agentConfig);
+
     try {
       // Check if this is a RAG agent - use local model instead of Gemini
-      if (isRagAgent(agentConfig)) {
+      if (isRag) {
         const ragModel = agentConfig?.configuration?.customRag?.model || 'Mistral-7B-Instruct';
         console.log('Using local RAG model:', ragModel);
 
@@ -655,7 +657,8 @@ IMPORTANT: Answer this question using the authoritative knowledge base informati
 
       return data.candidates[0].content.parts[0].text.trim();
     } catch (error) {
-      throw new Error(`Gemini API error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      const errorPrefix = isRag ? 'Local model error' : 'Gemini API error';
+      throw new Error(`${errorPrefix}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
