@@ -190,7 +190,7 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, steps }) => {
         </div>
       </div>
 
-      <style jsx>{`
+      <style>{`
         @keyframes pulse {
           0%, 100% {
             opacity: 1;
