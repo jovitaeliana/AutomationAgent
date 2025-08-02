@@ -202,9 +202,8 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, steps }) => {
 
           <button
             onClick={skipTour}
-            className="text-gray-600 mb-6 text-sm leading-relaxed"
+            className="text-gray-600 text-sm hover:text-gray-800"
           >
-            Skip Tour
           </button>
 
           <button
