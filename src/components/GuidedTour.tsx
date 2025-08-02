@@ -19,31 +19,56 @@ interface GuidedTourProps {
 const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, steps }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [highlightedElement, setHighlightedElement] = useState<HTMLElement | null>(null);
+  const [elementRect, setElementRect] = useState<DOMRect | null>(null);
 
   useEffect(() => {
     if (isOpen && steps[currentStep]?.target) {
       const element = document.querySelector(steps[currentStep].target!) as HTMLElement;
       if (element) {
         setHighlightedElement(element);
+        setElementRect(element.getBoundingClientRect());
         element.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
+        console.warn(`Tour target not found: ${steps[currentStep].target}`);
     } else {
       setHighlightedElement(null);
     }
+      setElementRect(null);
   }, [currentStep, isOpen, steps]);
 
   useEffect(() => {
     if (!isOpen) {
       setHighlightedElement(null);
       setCurrentStep(0);
+      setElementRect(null);
     }
   }, [isOpen]);
 
   const nextStep = () => {
+  // Update element rect on window resize or scroll
+  useEffect(() => {
+    if (!highlightedElement) return;
+
+    const updateRect = () => {
+      if (highlightedElement) {
+        setElementRect(highlightedElement.getBoundingClientRect());
+      }
+    };
+
+    window.addEventListener('resize', updateRect);
+    window.addEventListener('scroll', updateRect);
+
+    return () => {
+      window.removeEventListener('resize', updateRect);
+      window.removeEventListener('scroll', updateRect);
+    };
+  }, [highlightedElement]);
+
     if (currentStep < steps.length - 1) {
       // Execute action if defined for current step
       if (steps[currentStep]?.action) {
         steps[currentStep].action!();
+        setElementRect(null);
       }
       setCurrentStep(currentStep + 1);
     }
@@ -74,18 +99,17 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, steps }) => {
   return (
     <>
       {/* Overlay with spotlight effect */}
-      {highlightedElement ? (
+      {highlightedElement && elementRect ? (
         <div className="fixed inset-0 z-40 pointer-events-none">
-          {/* Create a spotlight effect by using multiple divs to cover everything except the highlighted area */}
           <svg className="w-full h-full">
             <defs>
               <mask id="spotlight">
                 <rect width="100%" height="100%" fill="white" />
                 <rect
-                  x={highlightedElement.offsetLeft - 8}
-                  y={highlightedElement.offsetTop - 8}
-                  width={highlightedElement.offsetWidth + 16}
-                  height={highlightedElement.offsetHeight + 16}
+                  x={elementRect.left - 8}
+                  y={elementRect.top - 8}
+                  width={elementRect.width + 16}
+                  height={elementRect.height + 16}
                   rx="8"
                   fill="black"
                 />
@@ -100,18 +124,18 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, steps }) => {
           </svg>
         </div>
       ) : (
-        <div className="fixed inset-0 bg-black/20 z-40" />
+        <div className="fixed inset-0 bg-black/30 z-40" />
       )}
 
       {/* Highlight border for targeted elements */}
-      {highlightedElement && (
+      {highlightedElement && elementRect && (
         <div
           className="fixed z-50 pointer-events-none"
           style={{
-            top: highlightedElement.offsetTop - 8,
-            left: highlightedElement.offsetLeft - 8,
-            width: highlightedElement.offsetWidth + 16,
-            height: highlightedElement.offsetHeight + 16,
+            top: elementRect.top - 8,
+            left: elementRect.left - 8,
+            width: elementRect.width + 16,
+            height: elementRect.height + 16,
             border: '3px solid #3B82F6',
             borderRadius: '8px',
             boxShadow: '0 0 0 4px rgba(59, 130, 246, 0.3)',
@@ -123,7 +147,7 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, steps }) => {
       {/* Tour bubble */}
       <div
         className="fixed z-50 bg-white rounded-lg shadow-xl border border-gray-200 p-6 max-w-sm"
-        style={getPositionStyles(currentTourStep, highlightedElement)}
+        style={getPositionStyles(currentTourStep, elementRect)}
       >
         {/* Close button */}
         <button
@@ -204,8 +228,8 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, steps }) => {
   );
 };
 
-const getPositionStyles = (step: TourStep, element: HTMLElement | null): React.CSSProperties => {
-  if (!element || step.position === 'center') {
+const getPositionStyles = (step: TourStep, elementRect: DOMRect | null): React.CSSProperties => {
+  if (!elementRect || step.position === 'center') {
     return {
       top: '50%',
       left: '50%',
@@ -213,30 +237,29 @@ const getPositionStyles = (step: TourStep, element: HTMLElement | null): React.C
     };
   }
 
-  const rect = element.getBoundingClientRect();
   const bubbleWidth = 384; 
   const bubbleHeight = 200; 
 
   switch (step.position) {
     case 'bottom':
       return {
-        top: rect.bottom + 16,
-        left: Math.max(16, rect.left + rect.width/2 - bubbleWidth/2)
+        top: elementRect.bottom + 16,
+        left: Math.max(16, Math.min(window.innerWidth - bubbleWidth - 16, elementRect.left + elementRect.width/2 - bubbleWidth/2))
       };
     case 'top':
       return {
-        top: rect.top - bubbleHeight - 16,
-        left: Math.max(16, rect.left + rect.width/2 - bubbleWidth/2)
+        top: Math.max(16, elementRect.top - bubbleHeight - 16),
+        left: Math.max(16, Math.min(window.innerWidth - bubbleWidth - 16, elementRect.left + elementRect.width/2 - bubbleWidth/2))
       };
     case 'left':
       return {
-        top: rect.top + rect.height/2 - bubbleHeight/2,
-        left: rect.left - bubbleWidth - 16
+        top: Math.max(16, Math.min(window.innerHeight - bubbleHeight - 16, elementRect.top + elementRect.height/2 - bubbleHeight/2)),
+        left: Math.max(16, elementRect.left - bubbleWidth - 16)
       };
     case 'right':
       return {
-        top: rect.top + rect.height/2 - bubbleHeight/2,
-        left: rect.right + 16
+        top: Math.max(16, Math.min(window.innerHeight - bubbleHeight - 16, elementRect.top + elementRect.height/2 - bubbleHeight/2)),
+        left: Math.min(window.innerWidth - bubbleWidth - 16, elementRect.right + 16)
       };
     default:
       return {
