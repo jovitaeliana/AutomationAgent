@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { HelpCircle } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import { InputField, SelectField, TextareaField } from '../components/FormField';
 import FileUploadButton from '../components/FileUploadButton';
 import { BackButtonIcon } from '../components/Icons';
 import { datasetService } from '../services/api';
+import GuidedTour, { type TourStep } from '../components/GuidedTour';
 import type { Dataset } from '../lib/supabase';
 
 // Define the page names type
@@ -44,7 +46,61 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
   // Alert system
   const [alerts, setAlerts] = useState<Alert[]>([]);
   
+  // Guided tour state
+  const [showTour, setShowTour] = useState(false);
+
   const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY!
+
+  const uploadDatasetTourSteps: TourStep[] = [
+    {
+      id: 'welcome',
+      title: 'Welcome to Dataset Upload! 📊',
+      content: 'This tour will guide you through creating and managing test datasets for your AI agents.',
+      position: 'center'
+    },
+    {
+      id: 'dataset-config',
+      title: 'Step 1: Configure Dataset',
+      content: 'Start by giving your dataset a name and selecting the test type. You can also add a description to help identify the dataset later.',
+      target: '[data-tour="dataset-config"]',
+      position: 'bottom'
+    },
+    {
+      id: 'file-upload',
+      title: 'Step 2: Upload Your File',
+      content: 'Upload your dataset file (CSV, JSON, TXT, etc.) that contains the content you want to generate questions from.',
+      target: '[data-tour="file-upload"]',
+      position: 'right'
+    },
+    {
+      id: 'generate-mcq',
+      title: 'Step 3: Generate Questions',
+      content: 'Click this button to use AI to automatically generate multiple choice questions from your uploaded content.',
+      target: '[data-tour="generate-mcq"]',
+      position: 'right'
+    },
+    {
+      id: 'preview-questions',
+      title: 'Step 4: Preview Generated Questions',
+      content: 'Review the AI-generated questions here. You can see all the questions, options, correct answers, and explanations.',
+      target: '[data-tour="preview-questions"]',
+      position: 'left'
+    },
+    {
+      id: 'existing-datasets',
+      title: 'Step 5: Manage Existing Datasets',
+      content: 'View and manage all your previously created datasets. You can delete datasets or view their questions in detail.',
+      target: '[data-tour="existing-datasets"]',
+      position: 'top'
+    },
+    {
+      id: 'save-dataset',
+      title: 'Step 6: Save Your Dataset',
+      content: 'Once you\'re satisfied with the generated questions, save your dataset. It will be available for testing agents in the flow builder.',
+      target: '[data-tour="save-dataset"]',
+      position: 'top'
+    }
+  ];
 
   // Alert functions
   const addAlert = (type: AlertType, message: string) => {
@@ -216,6 +272,15 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-app-bg-highlight to-app-bg text-app-text font-sans">
+      {/* Help/Tour Button */}
+      <button
+        onClick={() => setShowTour(true)}
+        className="fixed bottom-6 right-6 bg-blue-600 text-white p-3 rounded-full shadow-lg hover:bg-blue-700 transition-colors z-30"
+        title="Take a guided tour"
+      >
+        <HelpCircle size={24} />
+      </button>
+
       <PageHeader title="Upload Dataset" subtitle="Upload and configure your dataset">
         <div className="flex items-center space-x-4">
           <button 
@@ -254,7 +319,7 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
       <main className="max-w-7xl mx-auto px-8 py-12 pb-32">
         <form id="dataset-form" onSubmit={handleSubmit} className="space-y-8">
           {/* Dataset Configuration Card */}
-          <div className="bg-app-bg-content rounded-xl border border-app-border p-6 hover:shadow-lg transition-all">
+          <div className="bg-app-bg-content rounded-xl border border-app-border p-6 hover:shadow-lg transition-all" data-tour="dataset-config">
             <h2 className="text-2xl font-semibold text-app-text mb-6">Dataset Configuration</h2>
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -282,7 +347,7 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
 
           {/* File Uploads & MCQ Generation */}
           <div className="bg-app-bg-content rounded-xl border border-app-border p-6 hover:shadow-lg transition-all flex flex-col md:flex-row gap-8">
-            <div className="flex-1 space-y-8">
+            <div className="flex-1 space-y-8" data-tour="file-upload">
               <div>
                 <h2 className="text-2xl font-semibold text-app-text mb-4">Upload Dataset File *</h2>
                 <p className="block text-sm font-medium text-app-text mb-2">
@@ -300,7 +365,7 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
                 )}
               </div>
               
-              <div>
+              <div data-tour="generate-mcq">
                 <button
                   type="button"
                   onClick={handleGenerateMCQ}
@@ -319,7 +384,7 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
             </div>
             
             {/* Generated MCQ Panel on the Right */}
-            <div className="w-full md:w-96">
+            <div className="w-full md:w-96" data-tour="preview-questions">
               {generatedMCQ.length > 0 ? (
                 <div className="bg-app-bg-highlight rounded-lg p-4 h-full">
                   <h2 className="text-xl font-semibold text-app-text mb-4">Generated Questions ({generatedMCQ.length})</h2>
@@ -351,7 +416,7 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
           </div>
 
           {/* Existing Datasets Section */}
-          <div className="bg-app-bg-content rounded-xl border border-app-border p-6 hover:shadow-lg transition-all">
+          <div className="bg-app-bg-content rounded-xl border border-app-border p-6 hover:shadow-lg transition-all" data-tour="existing-datasets">
             <h2 className="text-2xl font-semibold text-app-text mb-6">Existing Datasets</h2>
             
             {isLoadingDatasets ? (
