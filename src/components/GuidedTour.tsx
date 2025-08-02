@@ -149,6 +149,8 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, steps }) => {
         className="fixed z-50 bg-white rounded-lg shadow-xl border border-gray-200 p-6 max-w-sm"
         style={getPositionStyles(currentTourStep, elementRect)}
       >
+        {/* Content wrapper with proper overflow handling */}
+        <div className="max-h-96 overflow-y-auto">
         {/* Close button */}
         <button
           onClick={skipTour}
@@ -198,9 +200,10 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, steps }) => {
           </button>
 
           <button
-            onClick={skipTour}
-            className="text-sm text-gray-500 hover:text-gray-700"
-          >
+          <div className="text-gray-600 mb-6 text-sm leading-relaxed">
+            className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 z-10"
+          </div>
+        </div>
             Skip Tour
           </button>
 
@@ -237,8 +240,8 @@ const getPositionStyles = (step: TourStep, elementRect: DOMRect | null): React.C
     };
   }
 
-  const bubbleWidth = 384; 
-  const bubbleHeight = 200; 
+  const bubbleWidth = 384; // max-w-sm = 384px
+  const bubbleHeight = 300; // Increased to accommodate more content
 
   switch (step.position) {
     case 'bottom':
