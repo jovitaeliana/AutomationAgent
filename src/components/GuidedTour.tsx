@@ -241,8 +241,8 @@ const getPositionStyles = (step: TourStep, elementRect: DOMRect | null): React.C
     };
   }
 
-  const bubbleWidth = 384; // max-w-sm = 384px
-  const bubbleHeight = 300; // Increased to accommodate more content
+  const bubbleWidth = 384; 
+  const bubbleHeight = 200; 
 
   switch (step.position) {
     case 'bottom':
