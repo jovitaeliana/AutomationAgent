@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useDrag } from 'react-dnd';
 
 // Type Definitions
-export interface NodeItem {
+interface NodeItem {
   id: string;
   icon: string;
   title: string;

@@ -52,7 +52,7 @@ export const AvatarIcon = () => (
   </svg>
 );
 
-export const WebsiteIcon = () => (
+const WebsiteIcon = () => (
   <svg className="w-10 h-10 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 21l5.25-11.25L21 21m-9-3h7.5M3 5.621a48.474 48.474 0 016-.371m0 0c1.12 0 2.233.038 3.334.108m2.223 2.223c1.11 1.226 1.857 2.67 1.857 4.242m2.134 2.134a8.963 8.963 0 01-1.097 1.097m-1.097-1.097a8.963 8.963 0 01-1.097-1.097m0 0A8.963 8.963 0 0112 5.621m-3.379 3.379A8.963 8.963 0 0112 5.621" />
   </svg>

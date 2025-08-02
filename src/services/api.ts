@@ -455,7 +455,7 @@ export const agentService = {
   }
 };
 
-export interface NodeConfiguration {
+interface NodeConfiguration {
   id: string;
   node_id: string;
   configuration: any;
@@ -964,7 +964,7 @@ export const weatherService = {
 };
 
 // Function to call local model API for RAG agents
-export const callLocalModelAPI = async (prompt: string, model: string): Promise<string> => {
+const callLocalModelAPI = async (prompt: string, model: string): Promise<string> => {
   try {
     const response = await localModelApi.generateRagResponse(
       model,

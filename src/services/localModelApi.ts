@@ -226,5 +226,4 @@ class LocalModelApiService {
 // Export singleton instance
 export const localModelApi = new LocalModelApiService();
 
-// Export types for use in other files
-export type { ChatMessage, ChatRequest, ChatResponse, ModelInfo };
+// Export types for use in other files;

@@ -77,7 +77,7 @@ interface SearchConfigProps {
   maxResults: string;
   onMaxResultsChange: (value: string) => void;
 }
-export const SearchConfigFields: React.FC<SearchConfigProps> = ({ apiKey, onApiKeyChange, engineId, onEngineIdChange, maxResults, onMaxResultsChange }) => (
+const SearchConfigFields: React.FC<SearchConfigProps> = ({ apiKey, onApiKeyChange, engineId, onEngineIdChange, maxResults, onMaxResultsChange }) => (
   <div className="space-y-6">
     <InputField label="Google API Key" type="password" placeholder="Google Custom Search API key" value={apiKey} onChange={onApiKeyChange} />
     <InputField label="Search Engine ID" placeholder="Custom Search Engine ID" value={engineId} onChange={onEngineIdChange} />

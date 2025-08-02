@@ -33,7 +33,7 @@ export interface FlowConnection {
   created_at: string;
 }
 
-export interface NodeDataset {
+interface NodeDataset {
   id: string;
   node_id: string;
   dataset_id: string;
