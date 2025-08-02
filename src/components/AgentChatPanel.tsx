@@ -31,6 +31,7 @@ const AgentChatPanel: React.FC<AgentChatPanelProps> = ({
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isLocalModelServerAvailable, setIsLocalModelServerAvailable] = useState<boolean>(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -53,6 +54,23 @@ const AgentChatPanel: React.FC<AgentChatPanelProps> = ({
       setMessages([welcomeMessage]);
     }
   }, [agentConfig, messages.length]);
+
+  // Check local model server availability
+  useEffect(() => {
+    const checkServerAvailability = async () => {
+      try {
+        const isAvailable = await localModelApi.isServerAvailable();
+        setIsLocalModelServerAvailable(isAvailable);
+      } catch (error) {
+        setIsLocalModelServerAvailable(false);
+      }
+    };
+
+    checkServerAvailability();
+    // Check every 30 seconds
+    const interval = setInterval(checkServerAvailability, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const getApiKey = (): string | null => {
     if (!agentConfig?.configuration) return null;
@@ -132,6 +150,15 @@ const AgentChatPanel: React.FC<AgentChatPanelProps> = ({
   const hasWeatherCapability = (): boolean => {
     const { openWeatherApiKey } = getWeatherApiKeys();
     return !!openWeatherApiKey; // Only need OpenWeather API key, local model handles the rest
+  };
+
+  // Helper function to check if agent requires local model server
+  const requiresLocalModelServer = (): boolean => {
+    if (!agentConfig?.configuration) return false;
+    
+    return isRagAgent(agentConfig) ||
+           agentConfig.configuration.preset === 'weather' ||
+           agentConfig.configuration.preset === 'search';
   };
 
   const getSystemPrompt = (): string => {
@@ -741,18 +768,18 @@ USER QUESTION: ${finalUserMessage}`;
       </div>
 
       {/* API Key Status */}
-      {!getApiKey() && !isRagAgent(agentConfig) && !isWeatherAgent() && !isSearchAgent() && (
+      {requiresLocalModelServer() && !isLocalModelServerAvailable && (
         <div className="p-4 bg-red-50 border-b border-red-200">
           <div className="text-sm text-red-600">
-            ⚠️ No Gemini API key found in agent configuration. Please configure the agent first.
+            ⚠️ Local model server not available. Please start the local model server first by running <code className="bg-red-100 px-1 rounded">./start_local_models.sh</code>
           </div>
         </div>
       )}
 
-      {isRagAgent(agentConfig) && !getApiKey() && (
+      {!getApiKey() && !isRagAgent(agentConfig) && !isWeatherAgent() && !isSearchAgent() && !requiresLocalModelServer() && (
         <div className="p-4 bg-red-50 border-b border-red-200">
           <div className="text-sm text-red-600">
-            ⚠️ Local model server not available. Please start the local model server first.
+            ⚠️ No Gemini API key found in agent configuration. Please configure the agent first.
           </div>
         </div>
       )}
@@ -852,13 +879,14 @@ USER QUESTION: ${finalUserMessage}`;
             onKeyDown={handleKeyDown}
             placeholder={canAgentFunction() ? "Type your message..." : "Configure agent first..."}
             disabled={!canAgentFunction() || isLoading}
+            disabled={!canAgentFunction() || isLoading || (requiresLocalModelServer() && !isLocalModelServerAvailable)}
             className="flex-1 px-3 py-2 border border-app-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary resize-none"
             rows={1}
             style={{ minHeight: '40px', maxHeight: '120px' }}
           />
           <button
             onClick={handleSendMessage}
-            disabled={!inputValue.trim() || !canAgentFunction() || isLoading}
+            disabled={!inputValue.trim() || !canAgentFunction() || isLoading || (requiresLocalModelServer() && !isLocalModelServerAvailable)}
             className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <Send size={16} />

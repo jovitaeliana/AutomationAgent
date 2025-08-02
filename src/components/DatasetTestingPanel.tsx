@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { ChevronLeft, Play, Pause, RotateCcw, CheckCircle, XCircle, Clock } from 'lucide-react';
-import { datasetService, knowledgeBaseRAGService, weatherService } from '../services/api';
+import React, { useState, useEffect } from 'react';
+import { ChevronLeft, Play, RotateCcw, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { datasetService } from '../services/api';
 import { localModelApi } from '../services/localModelApi';
 import type { Dataset, Agent } from '../lib/supabase';
 import { isRagAgent } from '../utils/agentUtils';
@@ -8,7 +8,6 @@ import { isRagAgent } from '../utils/agentUtils';
 interface DatasetTestingPanelProps {
   nodeId: string;
   agentConfig: Agent | null;
-  connectedKnowledgeBaseNodes: string[];
   onBack: () => void;
 }
 
@@ -20,16 +19,12 @@ interface TestResult {
   isCorrect: boolean | null;
   responseTime: number;
   error?: string;
-  options?: string[];
-  selectedAnswer?: string;
 }
 
 interface Question {
   id: number;
   question: string;
   answer: string;
-  options?: string[];
-  correctAnswer?: string;
   category?: string;
   difficulty?: string;
 }
@@ -37,45 +32,46 @@ interface Question {
 const DatasetTestingPanel: React.FC<DatasetTestingPanelProps> = ({
   nodeId,
   agentConfig,
-  connectedKnowledgeBaseNodes,
   onBack
 }) => {
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [selectedDataset, setSelectedDataset] = useState<Dataset | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [isRunning, setIsRunning] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
-  const pauseRequestedRef = useRef(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [testCompleted, setTestCompleted] = useState(false);
+  const [currentTestIndex, setCurrentTestIndex] = useState<number | null>(null);
+  const [isLocalModelServerAvailable, setIsLocalModelServerAvailable] = useState<boolean>(false);
 
-  // Load datasets on component mount
+  // Load available datasets on component mount
   useEffect(() => {
-    const loadDatasets = async () => {
-      try {
-        setIsLoading(true);
-        const data = await datasetService.getAll();
-        setDatasets(data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load datasets');
-      } finally {
-        setIsLoading(false);
-      }
-    };
     loadDatasets();
   }, []);
 
-  // Load questions when dataset is selected
+  // Check local model server availability
   useEffect(() => {
-    if (selectedDataset) {
-      setQuestions(selectedDataset.questions || []);
-      setCurrentQuestionIndex(0);
-      setTestResults([]);
+    const checkServerAvailability = async () => {
+      try {
+        const isAvailable = await localModelApi.isServerAvailable();
+        setIsLocalModelServerAvailable(isAvailable);
+      } catch (error) {
+        setIsLocalModelServerAvailable(false);
+      }
+    };
+
+    checkServerAvailability();
+    // Check every 30 seconds
+    const interval = setInterval(checkServerAvailability, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const loadDatasets = async () => {
+    try {
+      const data = await datasetService.getAll();
+      setDatasets(data);
+    } catch (error) {
+      console.error('Failed to load datasets:', error);
     }
-  }, [selectedDataset]);
+  };
 
   const getApiKey = (): string | null => {
     if (!agentConfig?.configuration) return null;
@@ -85,17 +81,7 @@ const DatasetTestingPanel: React.FC<DatasetTestingPanelProps> = ({
       return 'local-model'; // Return a placeholder to indicate local model usage
     }
 
-    // For weather agents, no Gemini API key needed (uses local model)
-    if (isWeatherAgent()) {
-      return 'local-model'; // Return a placeholder to indicate local model usage
-    }
-
-    // For search agents, no Gemini API key needed (uses local model)
-    if (isSearchAgent()) {
-      return 'local-model'; // Return a placeholder to indicate local model usage
-    }
-
-    // Check different possible locations for API key for other agents
+    // Check different possible locations for API key
     const config = agentConfig.configuration;
     return config.geminiApiKey ||
            config.search?.geminiApiKey ||
@@ -103,931 +89,132 @@ const DatasetTestingPanel: React.FC<DatasetTestingPanelProps> = ({
            null;
   };
 
-  const getSerpApiKey = (): string | null => {
-    if (!agentConfig?.configuration?.search) return null;
-    return agentConfig.configuration.search.serpApiKey || null;
-  };
-
-  const hasSearchCapability = (): boolean => {
-    return !!getSerpApiKey(); // Only need SerpAPI key, local model handles the rest
-  };
-
-  // Helper function to check if this is a weather agent
-  const isWeatherAgent = (): boolean => {
+  // Helper function to check if agent requires local model server
+  const requiresLocalModelServer = (): boolean => {
     if (!agentConfig?.configuration) return false;
-
-    return agentConfig.configuration.preset === 'weather' ||
-           !!agentConfig.configuration.weather;
-  };
-
-  // Helper function to check if this is a search agent
-  const isSearchAgent = (): boolean => {
-    if (!agentConfig?.configuration) return false;
-
-    return agentConfig.configuration.preset === 'search' ||
-           !!agentConfig.configuration.search;
-  };
-
-  // Helper function to check if agent can function (has required keys or uses local model)
-  const canAgentFunction = (): boolean => {
-    if (isRagAgent(agentConfig)) {
-      return true; // RAG agents use local model, no API key needed
-    }
-    if (isWeatherAgent() && hasWeatherCapability()) {
-      return true; // Weather agents only need OpenWeather API key
-    }
-    if (isSearchAgent() && hasSearchCapability()) {
-      return true; // Search agents only need SerpAPI key
-    }
-    return !!getApiKey(); // Other agents need Gemini API key
-  };
-
-  // Helper function to get weather API keys
-  const getWeatherApiKeys = (): { openWeatherApiKey: string | null } => {
-    if (!agentConfig?.configuration?.weather) return { openWeatherApiKey: null };
-
-    const weatherConfig = agentConfig.configuration.weather;
-    return {
-      openWeatherApiKey: weatherConfig.openWeatherApiKey || null
-    };
-  };
-
-  const hasWeatherCapability = (): boolean => {
-    const { openWeatherApiKey } = getWeatherApiKeys();
-    return !!openWeatherApiKey; // Only need OpenWeather API key, local model handles the rest
-  };
-
-  const getSystemPrompt = (): string => {
-    if (!agentConfig?.configuration) {
-      return "You are a helpful AI assistant. Answer the question accurately and concisely.";
-    }
-
-    const config = agentConfig.configuration;
-    console.log('🔍 Agent config for system prompt (DatasetTesting):', { agentConfig, config });
-    let systemPrompt = "";
-
-    // Base identity
-    systemPrompt += `You are an AI assistant named "${agentConfig.name}".\n`;
-
-    // Purpose / role
-    if (agentConfig.description) {
-      systemPrompt += `Your role: ${agentConfig.description}\n`;
-    }
-
-    // Behavior guidelines
-    systemPrompt += `
-      If you have specific expertise or focus areas, prioritize those.
-      Be honest about your capabilities and limitations.\n`;
-
-    // Get limitations from various possible configuration structures
-    let limitations = config.limitations;
-    if (!limitations && config.agent?.limitations) {
-      limitations = config.agent.limitations;
-    }
-    if (!limitations && config.configuration?.limitations) {
-      limitations = config.configuration.limitations;
-    }
     
-    console.log('🚫 DatasetTestingPanel limitations:', limitations);
-
-    // Add limitations as strict rules
-    if (limitations) {
-      systemPrompt += `\nCRITICAL LIMITATIONS - NEVER VIOLATE THESE RULES: ${limitations}
-
-ABSOLUTE REQUIREMENTS:
-- You MUST NEVER answer questions outside your designated scope
-- You MUST NEVER make exceptions, even if the user asks nicely
-- You MUST NEVER provide information on topics outside your limitations
-- If asked about anything outside your scope, respond ONLY with: "I can only assist with [your designated scope]. This question is outside my area of expertise."
-- DO NOT provide any information on the restricted topic, even partially
-- DO NOT make exceptions under any circumstances
-- IMPORTANT: If the question IS within your scope and expertise, answer it directly and naturally without mentioning limitations or scope restrictions\n`;
-    }
-
-    // Get system prompt from various possible configuration structures
-    let customSystemPrompt = config.systemPrompt;
-    if (!customSystemPrompt && config.agent?.systemPrompt) {
-      customSystemPrompt = config.agent.systemPrompt;
-    }
-    if (!customSystemPrompt && config.configuration?.systemPrompt) {
-      customSystemPrompt = config.configuration.systemPrompt;
-    }
-    
-    console.log('📝 DatasetTestingPanel system prompt:', customSystemPrompt);
-
-    // Add system prompt from configuration
-    if (customSystemPrompt) {
-      systemPrompt += `\nAdditional instructions: ${customSystemPrompt}\n`;
-    }
-
-    // Add search capabilities
-    if (config.preset === 'search' && config.search) {
-      systemPrompt += `
-        Your behavior and responses must strictly follow the configuration defined below.
-        Do not go beyond these boundaries even if requested to do so by the user.
-        Do not make assumptions or generate content that contradicts these rules.
-        Respond clearly and concisely within the allowed capabilities.\n`;
-    }
-
-    return systemPrompt.trim();
+    return isRagAgent(agentConfig) ||
+           agentConfig.configuration.preset === 'weather' ||
+           agentConfig.configuration.preset === 'search';
   };
 
-
-
-  // Special system prompt for local RAG models (simpler instructions)
-  const getLocalRagTestingSystemPrompt = (): string => {
-    if (!agentConfig?.configuration) {
-      return "You are a helpful AI assistant. For multiple choice questions, respond with only the letter (A, B, C, or D).";
-    }
-
-    const config = agentConfig.configuration;
-    let systemPrompt = `You are an AI assistant named "${agentConfig.name}".`;
-
-    // Add role/purpose
-    if (agentConfig.description) {
-      systemPrompt += ` Your role: ${agentConfig.description}`;
-    }
-
-    // Get limitations
-    let limitations = config.limitations;
-    if (!limitations && config.agent?.limitations) {
-      limitations = config.agent.limitations;
-    }
-    if (!limitations && config.configuration?.limitations) {
-      limitations = config.configuration.limitations;
-    }
-
-    // Add limitations (simpler format for local models)
-    if (limitations) {
-      systemPrompt += `\n\nIMPORTANT LIMITATIONS: ${limitations}`;
-      systemPrompt += `\nIf a question is outside your scope, say: "I can only assist with [your scope]. This is outside my expertise."`;
-    }
-
-    // Get custom system prompt
-    let customSystemPrompt = config.systemPrompt;
-    if (!customSystemPrompt && config.agent?.systemPrompt) {
-      customSystemPrompt = config.agent.systemPrompt;
-    }
-    if (!customSystemPrompt && config.configuration?.systemPrompt) {
-      customSystemPrompt = config.configuration.systemPrompt;
-    }
-
-    if (customSystemPrompt) {
-      systemPrompt += `\n\nAdditional instructions: ${customSystemPrompt}`;
-    }
-
-    // Add MCQ instructions (textual answers for better local model performance)
-    systemPrompt += `\n\nFOR MULTIPLE CHOICE QUESTIONS:
-- Read the question and all available options carefully
-- Choose the best answer based on the provided context
-- Respond with the EXACT TEXT of your chosen answer
-- Do not add explanations, reasoning, or extra text
-- Just provide the exact answer text from the options
-
-Examples:
-Question: "What color is the sky?" Options: Red, Blue, Green
-Answer: Blue
-
-Question: "What is 2+2?" Options: 3, 4, 5
-Answer: 4`;
-
-    return systemPrompt;
-  };
-
-  // Function to process MCQ questions and extract textual options
-  const processMCQQuestion = (question: string): { cleanQuestion: string; textualOptions: string[] } => {
-    // Check if this is an MCQ question with A), B), C), D) format
-    const mcqPattern = /^(.*?)\s*(?:Options:|Choices:)?\s*A\)\s*(.*?)\s*B\)\s*(.*?)\s*C\)\s*(.*?)\s*(?:D\)\s*(.*?))?\s*$/s;
-    const match = question.match(mcqPattern);
-
-    if (match) {
-      const cleanQuestion = match[1].trim();
-      const options = [
-        match[2]?.trim(),
-        match[3]?.trim(),
-        match[4]?.trim(),
-        match[5]?.trim()
-      ].filter(Boolean);
-
-      return { cleanQuestion, textualOptions: options };
-    }
-
-    // Alternative pattern: Question followed by options on separate lines
-    const lines = question.split('\n').map(line => line.trim()).filter(Boolean);
-    const questionLine = lines[0];
-    const optionLines = lines.slice(1).filter(line => /^[A-D]\)/.test(line));
-
-    if (optionLines.length >= 2) {
-      const textualOptions = optionLines.map(line => line.replace(/^[A-D]\)\s*/, '').trim());
-      return { cleanQuestion: questionLine, textualOptions };
-    }
-
-    // If no MCQ pattern found, return as is
-    return { cleanQuestion: question, textualOptions: [] };
-  };
-
-  const shouldPerformSearch = (message: string): boolean => {
-    if (!hasSearchCapability()) return false;
-
-    const lowerMessage = message.toLowerCase();
-
-    // Check if the query is asking for current/local information that would benefit from search
-    const searchIndicators = [
-      // Current information requests
-      /\b(current|latest|recent|today|now|2024|2025)\b.*\b(shops?|restaurants?|places?|stores?|cafes?|coffee)\b/,
-      /\b(top|best|popular|trending|recommended)\b.*\b(shops?|restaurants?|places?|stores?|cafes?|coffee)\b/,
-
-      // Location-specific requests (but only for Singapore-related queries for this agent)
-      /\b(shops?|restaurants?|places?|stores?|cafes?|coffee)\b.*\b(in|at|near|around)\b.*\b(singapore|sengkang|tampines|jurong|orchard|marina|sentosa|changi|woodlands|yishun|ang mo kio|toa payoh|bishan|serangoon|hougang|punggol|pasir ris|bedok|kallang|geylang|novena|dhoby ghaut|raffles|clarke quay|boat quay|chinatown|little india|bugis|city hall|somerset|newton|bukit timah|clementi|dover|commonwealth|queenstown|redhill|tiong bahru|outram|tanjong pagar|harbourfront|vivocity|ion|ngee ann|takashimaya|plaza singapura|bugis junction|suntec|esplanade|merlion)\b/,
-
-      // Direct search requests
-      /\b(find|search|look|locate|where)\b.*\b(shops?|restaurants?|places?|stores?|cafes?|coffee)\b/,
-
-      // Price/business information
-      /\b(price|cost|hours?|opening|closing|contact|phone|address)\b.*\b(shops?|restaurants?|places?|stores?|cafes?|coffee)\b/,
-
-      // Current events, news, weather
-      /\b(news|events|weather|traffic|happening)\b/
-    ];
-
-    // Only search if the query matches specific patterns that indicate need for current information
-    return searchIndicators.some(pattern => pattern.test(lowerMessage));
-  };
-
-  const performSearch = async (query: string): Promise<string> => {
-    const serpApiKey = getSerpApiKey();
-    if (!serpApiKey) {
-      throw new Error('No SerpAPI key found in agent configuration');
-    }
-
-    try {
-      const searchConfig = agentConfig?.configuration?.search;
-      const maxResults = searchConfig?.maxResults || 10;
-
-      // Use Supabase Edge Function for search
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const response = await fetch(`${supabaseUrl}/functions/v1/search`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-        },
-        body: JSON.stringify({
-          query: query,
-          serpApiKey: serpApiKey,
-          options: {
-            location: 'Singapore',
-            hl: 'en',
-            gl: 'sg',
-            num: maxResults
-          }
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.text();
-        throw new Error(`Search request failed (${response.status}): ${errorData}`);
-      }
-
-      const data = await response.json();
-
-      if (data.error) {
-        throw new Error(`Search failed: ${data.error}`);
-      }
-
-      // The Edge Function returns formatted results as a string
-      return data.results || "No search results found for your query.";
-    } catch (error) {
-      throw new Error(`Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  };
-
-  const performWeatherQuery = async (): Promise<string> => {
-    const { openWeatherApiKey } = getWeatherApiKeys();
-    console.log('Weather API keys check:', {
-      hasOpenWeatherKey: !!openWeatherApiKey
-    });
-
-    if (!openWeatherApiKey) {
-      throw new Error('OpenWeather API key not found in agent configuration');
-    }
-
-    try {
-      const weatherConfig = agentConfig?.configuration?.weather;
-      const location = weatherConfig?.location || 'Singapore';
-      const units = weatherConfig?.units || 'Celsius';
-
-      console.log('Fetching weather data:', { location, units });
-
-      // Get current weather and forecast
-      const [currentWeather, forecast] = await Promise.all([
-        weatherService.getCurrentWeather(openWeatherApiKey, location, units),
-        weatherService.getForecast(openWeatherApiKey, location, units)
-      ]);
-
-      console.log('Weather data received:', {
-        currentWeather: !!currentWeather,
-        forecast: !!forecast
-      });
-
-      // Format weather data for Gemini processing
-      const formattedWeatherData = weatherService.formatWeatherData(currentWeather, forecast);
-
-      return formattedWeatherData;
-    } catch (error) {
-      console.error('Weather query error:', error);
-      throw new Error(`Weather query failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  };
-
-  const callGeminiAPI = async (question: string, apiKey: string): Promise<string> => {
-    const isRag = isRagAgent(agentConfig);
-
-    try {
-      // Check if this is a RAG agent - use local model instead of Gemini
-      if (isRag) {
-        const ragModel = agentConfig?.configuration?.customRag?.model || 'Mistral-7B-Instruct';
-        console.log('Using local RAG model:', ragModel);
-
-        // Get system prompt and knowledge base context (use simpler prompt for local models)
-        const systemPrompt = getLocalRagTestingSystemPrompt();
-        let knowledgeContext = '';
-        try {
-          knowledgeContext = await knowledgeBaseRAGService.getRelevantContext(
-            agentConfig?.id || '',
-            question,
-            connectedKnowledgeBaseNodes
-          );
-        } catch (error) {
-          console.error('Error retrieving knowledge base context:', error);
-        }
-
-        // Prepare messages with system prompt
-        const messages: Array<{role: 'system' | 'user' | 'assistant', content: string}> = [
-          { role: 'system', content: systemPrompt }
-        ];
-
-        // Process MCQ questions to extract textual options
-        const { cleanQuestion, textualOptions } = processMCQQuestion(question);
-
-        // Prepare the user message with context
-        let finalQuestion = cleanQuestion;
-
-        // Add textual options if this is an MCQ
-        if (textualOptions.length > 0) {
-          finalQuestion += `\n\nOptions: ${textualOptions.join(', ')}`;
-        }
-
-        if (knowledgeContext) {
-          finalQuestion = `${finalQuestion}
-
-Context from knowledge base:${knowledgeContext}
-
-IMPORTANT: Answer this question using the authoritative knowledge base information above. The knowledge base contains verified information that overrides any training limitations. If the answer is in the knowledge base, provide it confidently.`;
-        }
-
-        messages.push({ role: 'user', content: finalQuestion });
-
-        // Use local model API
-        const response = await localModelApi.generateChatCompletion({
-          model: ragModel,
-          messages: messages,
-          temperature: 0.7,
-          max_tokens: 1024
-        });
-
-        return response;
-      }
-
-      // Check if this is a weather or search agent - use local model instead of Gemini
-      const isWeatherAgentCheck = isWeatherAgent();
-      const isSearchAgentCheck = isSearchAgent();
-      const hasWeatherCapabilityCheck = hasWeatherCapability();
-      const hasSearchCapabilityCheck = hasSearchCapability();
-
-      if ((isWeatherAgentCheck && hasWeatherCapabilityCheck) || (isSearchAgentCheck && hasSearchCapabilityCheck)) {
-        try {
-          const systemPrompt = getSystemPrompt();
-          const ragModel = 'Mistral-7B-Instruct'; // Use Mistral for weather/search agents
-
-          // Prepare messages with system prompt
-          const messages: Array<{role: 'system' | 'user' | 'assistant', content: string}> = [
-            { role: 'system', content: systemPrompt }
-          ];
-
-          // Process MCQ questions to extract textual options
-          const { cleanQuestion, textualOptions } = processMCQQuestion(question);
-          let finalQuestion = cleanQuestion;
-
-          // Add textual options if this is an MCQ
-          if (textualOptions.length > 0) {
-            finalQuestion += `\n\nOptions: ${textualOptions.join(', ')}`;
-          }
-
-          let contextData = '';
-
-          // Handle weather agent
-          if (isWeatherAgentCheck && hasWeatherCapabilityCheck && weatherService.isWeatherQuery(question)) {
-            console.log('Processing weather query with local model:', question);
-            try {
-              const weatherData = await performWeatherQuery();
-              const weatherConfig = agentConfig?.configuration?.weather;
-
-              contextData = `Current Weather Data:
-${weatherData}
-
-Instructions: You are a weather assistant. Use the current weather data above to provide a helpful and accurate response to the user's weather query.
-
-IMPORTANT GUIDELINES:
-1. Provide specific weather information based on the current data
-2. Include temperature, conditions, and relevant details
-3. If asked about clothing or activities, make practical recommendations based on the weather
-4. Be conversational and helpful in your response
-5. Include forecast information when relevant to the query
-
-${weatherConfig?.customInstructions || ''}`;
-
-              finalQuestion = `User Query: ${finalQuestion}
-
-${contextData}
-
-Answer the user's weather question using the current weather data provided above.`;
-            } catch (weatherError) {
-              console.error('Weather query failed:', weatherError);
-              finalQuestion = `${finalQuestion}
-
-Note: Weather data is currently unavailable. Please provide a general response about weather or suggest checking a weather service.`;
-            }
-          }
-
-          // Handle search agent
-          else if (isSearchAgentCheck && hasSearchCapabilityCheck && shouldPerformSearch(question)) {
-            console.log('Processing search query with local model:', question);
-            try {
-              const searchResults = await performSearch(question);
-              const searchConfig = agentConfig?.configuration?.search;
-
-              contextData = `Search Results:
-${searchResults}
-
-Instructions: You are a search assistant. Use the search results above to provide a helpful and accurate response to the user's query.
-
-IMPORTANT GUIDELINES:
-1. Provide information based on the search results
-2. Cite relevant sources when possible
-3. Be accurate and factual in your response
-4. If the search results don't contain relevant information, say so
-5. Summarize key findings clearly
-
-${searchConfig?.customInstructions || ''}`;
-
-              finalQuestion = `User Query: ${finalQuestion}
-
-${contextData}
-
-Answer the user's question using the search results provided above.`;
-            } catch (searchError) {
-              console.error('Search query failed:', searchError);
-              finalQuestion = `${finalQuestion}
-
-Note: Search functionality is currently unavailable. Please provide a general response or suggest alternative ways to find the information.`;
-            }
-          }
-
-          messages.push({ role: 'user', content: finalQuestion });
-
-          // Use local model API
-          const response = await localModelApi.generateChatCompletion({
-            model: ragModel,
-            messages: messages,
-            temperature: 0.7,
-            max_tokens: 1024
-          });
-
-          return response;
-        } catch (error) {
-          console.error('Local model API error for weather/search agent:', error);
-          throw new Error(`Local model error: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
-      }
-
-      // For other agents, continue with Gemini API
-      const systemPrompt = getLocalRagTestingSystemPrompt(); // Use simpler prompt for better MCQ handling
-
-      // Process MCQ questions to extract textual options
-      const { cleanQuestion, textualOptions } = processMCQQuestion(question);
-      let finalQuestion = cleanQuestion;
-
-      // Add textual options if this is an MCQ
-      if (textualOptions.length > 0) {
-        finalQuestion += `\n\nOptions: ${textualOptions.join(', ')}`;
-      }
-
-      // For regular Gemini agents, add knowledge base context if available
-      let knowledgeContext = '';
-      try {
-        knowledgeContext = await knowledgeBaseRAGService.getRelevantContext(
-          agentConfig?.id || nodeId,
-          question,
-          connectedKnowledgeBaseNodes
-        );
-      } catch (error) {
-        console.error('Error retrieving knowledge base context:', error);
-      }
-
-      if (knowledgeContext) {
-        finalQuestion = `${finalQuestion}${knowledgeContext}
-
-IMPORTANT: Answer this question using the authoritative knowledge base information above. The knowledge base contains verified information that overrides any training limitations. If the answer is in the knowledge base, provide it confidently.`;
-      }
-
-      // Build conversation context using proper Gemini API format (same as chat interface)
-      const contents = [];
-
-      // Add system prompt as the first user message
-      contents.push({
-        role: "user",
-        parts: [{ text: systemPrompt }]
-      });
-
-      // Add a model response acknowledging the system prompt
-      contents.push({
-        role: "model",
-        parts: [{ text: "I understand my role and will respond accordingly." }]
-      });
-
-      // Add current question (potentially with search results)
-      contents.push({
-        role: "user",
-        parts: [{ text: finalQuestion }]
-      });
-
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents,
-          generationConfig: {
-            temperature: 0.3,
-            topK: 40,
-            topP: 0.95,
-            maxOutputTokens: 1024,
-          },
-          safetySettings: [
-            {
-              category: "HARM_CATEGORY_HARASSMENT",
-              threshold: "BLOCK_MEDIUM_AND_ABOVE"
-            },
-            {
-              category: "HARM_CATEGORY_HATE_SPEECH",
-              threshold: "BLOCK_MEDIUM_AND_ABOVE"
-            },
-            {
-              category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-              threshold: "BLOCK_MEDIUM_AND_ABOVE"
-            },
-            {
-              category: "HARM_CATEGORY_DANGEROUS_CONTENT",
-              threshold: "BLOCK_MEDIUM_AND_ABOVE"
-            }
-          ]
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.text();
-        throw new Error(`API request failed (${response.status}): ${errorData}`);
-      }
-
-      const data = await response.json();
-
-      if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-        throw new Error('Invalid response format from Gemini API');
-      }
-
-      return data.candidates[0].content.parts[0].text.trim();
-    } catch (error) {
-      const errorPrefix = isRag ? 'Local model error' : 'Gemini API error';
-      throw new Error(`${errorPrefix}: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  };
-
-  const extractAnswerFromResponse = (response: string, options?: string[]): string => {
-    const cleanResponse = response.trim().toLowerCase();
-
-    // If there are options (MCQ), try to match against them
-    if (options && options.length > 0) {
-      // Strategy 1: Look for direct answer statements like "is currently located at X"
-      const locationMatch = cleanResponse.match(/(?:is (?:currently )?located at|located at|current location.*?is)\s+([^.]+)/i);
-      if (locationMatch) {
-        const extractedLocation = locationMatch[1].trim();
-        // Find the option that best matches this extracted location
-        for (const option of options) {
-          if (extractedLocation.toLowerCase().includes(option.toLowerCase()) || 
-              option.toLowerCase().includes(extractedLocation.toLowerCase())) {
-            return option;
-          }
-        }
-      }
-
-      // Strategy 2: Look for the answer in context clues (avoid first mentions that might be in question context)
-      const sentences = response.split(/[.!?]+/);
-      for (let i = sentences.length - 1; i >= 0; i--) { // Start from end to avoid question context
-        const sentence = sentences[i].trim().toLowerCase();
-        if (sentence.length > 10) { // Only consider substantial sentences
-          for (const option of options) {
-            if (sentence.includes(option.toLowerCase())) {
-              return option;
-            }
-          }
-        }
-      }
-
-      // Strategy 3: Look for definitive answer patterns
-      const answerPatterns = [
-        /(?:the )?answer is:?\s*([^.]+)/i,
-        /(?:correct )?answer:?\s*([^.]+)/i,
-        /(?:currently )?located at:?\s*([^.]+)/i,
-        /(?:package.*?is.*?at)\s*([^.]+)/i
-      ];
-
-      for (const pattern of answerPatterns) {
-        const match = response.match(pattern);
-        if (match) {
-          const extractedAnswer = match[1].trim();
-          for (const option of options) {
-            if (extractedAnswer.toLowerCase().includes(option.toLowerCase()) || 
-                option.toLowerCase().includes(extractedAnswer.toLowerCase())) {
-              return option;
-            }
-          }
-        }
-      }
-
-      // Strategy 4: Look for exact option matches (but be more careful about context)
-      const responseWords = cleanResponse.split(/\s+/);
-      for (const option of options) {
-        const optionWords = option.toLowerCase().split(/\s+/);
-        // Check if all words of the option appear consecutively in the response
-        for (let i = 0; i <= responseWords.length - optionWords.length; i++) {
-          const consecutive = responseWords.slice(i, i + optionWords.length);
-          if (consecutive.join(' ') === optionWords.join(' ')) {
-            // Make sure this isn't in the question context (avoid first 20% of response)
-            const positionRatio = i / responseWords.length;
-            if (positionRatio > 0.2) { // Skip matches in first 20% of response
-              return option;
-            }
-          }
-        }
-      }
-
-      // Strategy 5: Look for option letters (A, B, C, D) - but be more specific
-      const optionLetterMatch = cleanResponse.match(/(?:option|choice|answer)\s*([a-d])\b/i);
-      if (optionLetterMatch) {
-        const letterIndex = optionLetterMatch[1].toUpperCase().charCodeAt(0) - 65;
-        if (letterIndex >= 0 && letterIndex < options.length) {
-          return options[letterIndex];
-        }
-      }
-    }
-
-    return response.trim();
-  };
-
-  const checkAnswerCorrectness = (geminiResponse: string, question: Question): boolean => {
-    const expectedAnswer = question.answer || question.correctAnswer || '';
-    const extractedAnswer = extractAnswerFromResponse(geminiResponse, question.options);
-
-    // For MCQ questions with options
-    if (question.options && question.options.length > 0) {
-      // Primary check: Direct match with extracted answer
-      if (extractedAnswer.toLowerCase() === expectedAnswer.toLowerCase()) {
-        return true;
-      }
-
-      // Secondary check: Look for definitive answer patterns
-      const response = geminiResponse.toLowerCase();
-      const expected = expectedAnswer.toLowerCase().trim();
-      
-      // Look for patterns like "the answer is A", "I choose B", "correct answer is C"
-      const answerPatterns = [
-        `the answer is ${expected}`,
-        `answer is ${expected}`,
-        `i choose ${expected}`,
-        `i select ${expected}`,
-        `correct answer is ${expected}`,
-        `the correct answer is ${expected}`,
-        `option ${expected}`,
-        `choice ${expected}`,
-        `${expected} is correct`,
-        `${expected} is the correct`,
-        `answer: ${expected}`,
-        `answer ${expected}`
-      ];
-
-      // Check if any of these patterns match
-      if (answerPatterns.some(pattern => response.includes(pattern))) {
-        return true;
-      }
-
-      // Look for letter-based answers (A, B, C, D) at the start of sentences or after punctuation
-      if (expected.length === 1 && /^[a-d]$/i.test(expected)) {
-        const letterPattern = new RegExp(`(?:^|[.!?]\\s+|\\n)\\s*${expected}[.)\\s]`, 'i');
-        if (letterPattern.test(response)) {
-          return true;
-        }
-      }
-
-      return false;
-    }
-
-    // For open-ended questions, use fuzzy matching
-    const responseWords = geminiResponse.toLowerCase().split(/\s+/);
-    const expectedWords = expectedAnswer.toLowerCase().split(/\s+/);
-
-    // Check if most expected words are in the response
-    const matchedWords = expectedWords.filter(word =>
-      responseWords.some(respWord => respWord.includes(word) || word.includes(respWord))
-    );
-
-    return matchedWords.length >= Math.ceil(expectedWords.length * 0.6); // 60% match threshold
-  };
-
-  const runSingleTest = async (questionIndex: number): Promise<TestResult> => {
-    const question = questions[questionIndex];
+  const callGeminiAPI = async (question: string): Promise<string> => {
     const apiKey = getApiKey();
+    if (!apiKey) {
+      throw new Error('No API key found in agent configuration');
+    }
 
-    console.log('Running test with API key:', {
-      hasApiKey: !!apiKey,
-      isWeatherAgent: isWeatherAgent(),
-      question
+    // Check if this is a RAG agent - use local model instead of Gemini
+    if (isRagAgent(agentConfig)) {
+      const ragModel = agentConfig?.configuration?.customRag?.model || 'Mistral-7B-Instruct';
+      console.log('Using local RAG model:', ragModel);
+
+      // Use local model API
+      const response = await localModelApi.generateChatCompletion({
+        model: ragModel,
+        messages: [
+          { role: 'user', content: question }
+        ],
+        temperature: 0.7,
+        max_tokens: 1024
+      });
+
+      return response;
+    }
+
+    // For regular Gemini agents
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{ text: question }]
+        }],
+        generationConfig: {
+          temperature: 0.3,
+          topK: 40,
+          topP: 0.95,
+          maxOutputTokens: 1024,
+        }
+      })
     });
 
-    if (!apiKey) {
-      const errorMessage = isRagAgent(agentConfig)
-        ? 'Local model server not available. Please start the local model server first.'
-        : 'No API key found in agent configuration';
-      throw new Error(errorMessage);
+    if (!response.ok) {
+      const errorData = await response.text();
+      throw new Error(`API request failed (${response.status}): ${errorData}`);
     }
 
-    const startTime = Date.now();
+    const data = await response.json();
 
-    try {
-      const geminiResponse = await callGeminiAPI(question.question, apiKey);
-      const responseTime = Date.now() - startTime;
-
-      const expectedAnswer = question.answer || question.correctAnswer || '';
-      const isCorrect = checkAnswerCorrectness(geminiResponse, question);
-      const selectedAnswer = extractAnswerFromResponse(geminiResponse, question.options);
-
-      return {
-        questionId: question.id,
-        question: question.question,
-        expectedAnswer,
-        geminiResponse,
-        isCorrect,
-        responseTime,
-        options: question.options,
-        selectedAnswer
-      };
-    } catch (error) {
-      return {
-        questionId: question.id,
-        question: question.question,
-        expectedAnswer: question.answer || question.correctAnswer || '',
-        geminiResponse: '',
-        isCorrect: null,
-        responseTime: Date.now() - startTime,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        options: question.options
-      };
+    if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+      throw new Error('Invalid response format from Gemini API');
     }
+
+    return data.candidates[0].content.parts[0].text.trim();
   };
 
-  const startTesting = async () => {
-    if (!selectedDataset || questions.length === 0) {
-      setError('Please select a dataset with questions');
-      return;
-    }
+  const checkAnswerCorrectness = (geminiResponse: string, expectedAnswer: string): boolean => {
+    // Simple string matching - can be enhanced with more sophisticated comparison
+    const response = geminiResponse.toLowerCase().trim();
+    const expected = expectedAnswer.toLowerCase().trim();
+    
+    return response.includes(expected) || expected.includes(response);
+  };
+
+  const runTest = async () => {
+    if (!selectedDataset || !questions.length) return;
 
     setIsRunning(true);
-    setIsPaused(false);
-    pauseRequestedRef.current = false;
-    setError(null);
     setTestResults([]);
-    setCurrentQuestionIndex(0);
-    setTestCompleted(false);
+    setCurrentTestIndex(0);
 
     for (let i = 0; i < questions.length; i++) {
-      // Check for pause request before each iteration
-      if (pauseRequestedRef.current) {
-        setIsPaused(true);
-        setIsRunning(false);
-        return;
-      }
-
-      setCurrentQuestionIndex(i);
+      setCurrentTestIndex(i);
+      const question = questions[i];
+      const startTime = Date.now();
 
       try {
-        const result = await runSingleTest(i);
-        setTestResults(prev => [...prev, result]);
+        const geminiResponse = await callGeminiAPI(question.question);
+        const responseTime = Date.now() - startTime;
+        const isCorrect = checkAnswerCorrectness(geminiResponse, question.answer);
 
-        // Check for pause request after each test
-        if (pauseRequestedRef.current) {
-          setIsPaused(true);
-          setIsRunning(false);
-          return;
-        }
+        const result: TestResult = {
+          questionId: question.id,
+          question: question.question,
+          expectedAnswer: question.answer,
+          geminiResponse,
+          isCorrect,
+          responseTime
+        };
+
+        setTestResults(prev => [...prev, result]);
 
         // Small delay between requests to avoid rate limiting
         await new Promise(resolve => setTimeout(resolve, 1000));
       } catch (error) {
-        setError(error instanceof Error ? error.message : 'Test failed');
-        break;
-      }
-    }
+        const result: TestResult = {
+          questionId: question.id,
+          question: question.question,
+          expectedAnswer: question.answer,
+          geminiResponse: '',
+          isCorrect: null,
+          responseTime: Date.now() - startTime,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        };
 
-    setIsRunning(false);
-    if (!pauseRequestedRef.current) {
-      setTestCompleted(true);
-    }
-  };
-
-  const pauseTesting = () => {
-    pauseRequestedRef.current = true;
-  };
-
-  const resumeTesting = async () => {
-    if (!selectedDataset || questions.length === 0) {
-      setError('Please select a dataset with questions');
-      return;
-    }
-
-    setIsRunning(true);
-    setIsPaused(false);
-    pauseRequestedRef.current = false;
-    setError(null);
-
-    // Resume from where we left off
-    const startIndex = testResults.length;
-
-    for (let i = startIndex; i < questions.length; i++) {
-      // Check for pause request before each iteration
-      if (pauseRequestedRef.current) {
-        setIsPaused(true);
-        setIsRunning(false);
-        return;
-      }
-
-      setCurrentQuestionIndex(i);
-
-      try {
-        const result = await runSingleTest(i);
         setTestResults(prev => [...prev, result]);
-
-        // Check for pause request after each test
-        if (pauseRequestedRef.current) {
-          setIsPaused(true);
-          setIsRunning(false);
-          return;
-        }
-
-        // Small delay between requests to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      } catch (error) {
-        setError(error instanceof Error ? error.message : 'Test failed');
-        break;
       }
     }
 
     setIsRunning(false);
-    if (!pauseRequestedRef.current) {
-      setTestCompleted(true);
-    }
+    setCurrentTestIndex(null);
   };
 
-  const resetTesting = () => {
-    setIsRunning(false);
-    setIsPaused(false);
-    pauseRequestedRef.current = false;
+  const resetTest = () => {
     setTestResults([]);
-    setCurrentQuestionIndex(0);
-    setError(null);
-    setTestCompleted(false);
-  };
-
-  const retestWithNewDataset = () => {
-    setSelectedDataset(null);
-    setQuestions([]);
-    setTestResults([]);
-    setCurrentQuestionIndex(0);
-    setError(null);
-    setTestCompleted(false);
-    setIsRunning(false);
-    setIsPaused(false);
-    pauseRequestedRef.current = false;
+    setCurrentTestIndex(null);
   };
 
   const getTestStats = () => {
@@ -1041,304 +228,207 @@ IMPORTANT: Answer this question using the authoritative knowledge base informati
     return { total, correct, incorrect, errors, avgResponseTime };
   };
 
-  if (isLoading) {
-    return (
-      <div className="p-4 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
   return (
-    <div className="h-full flex flex-col max-h-screen">
-      {/* Fixed Header */}
-      <div className="flex-shrink-0 p-4 border-b border-app-border">
-        <div className="flex items-center space-x-2 mb-2">
-          <button
-            onClick={onBack}
-            className="text-app-text-subtle hover:text-app-text transition-colors"
-          >
-            <ChevronLeft size={20} />
-          </button>
-          <h3 className="text-lg font-semibold text-app-text">Dataset Testing</h3>
-        </div>
-        <p className="text-sm text-app-text-subtle">
-          Testing node: <code className="bg-gray-100 px-1 rounded">{nodeId}</code>
-        </p>
+    <div className="h-full flex flex-col">
+      {/* Header */}
+      <div className="flex items-center space-x-2 p-4 border-b border-app-border">
+        <button
+          onClick={onBack}
+          className="text-app-text-subtle hover:text-app-text transition-colors"
+        >
+          <ChevronLeft size={20} />
+        </button>
+        <h3 className="text-lg font-semibold text-app-text">Dataset Testing</h3>
       </div>
 
-      {/* Scrollable Content Area */}
-      <div className="flex-1 overflow-y-auto min-h-0">
-        {/* Dataset Selection */}
-        {!selectedDataset ? (
-          <div className="p-4 space-y-4">
-            <h4 className="font-medium text-app-text">Select a Dataset</h4>
-            {datasets.length === 0 ? (
-              <p className="text-sm text-app-text-subtle">No datasets available</p>
-            ) : (
-              <div className="space-y-2">
-                {datasets.map((dataset) => (
-                  <button
-                    key={dataset.id}
-                    onClick={() => setSelectedDataset(dataset)}
-                    className="w-full text-left p-3 border border-app-border rounded hover:border-primary transition-colors"
-                  >
-                    <div className="font-medium text-app-text">{dataset.name}</div>
-                    <div className="text-sm text-app-text-subtle">
-                      {dataset.type} • {dataset.total_questions} questions
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
+      {/* API Key Status */}
+      {requiresLocalModelServer() && !isLocalModelServerAvailable && (
+        <div className="p-4 bg-red-50 border-b border-red-200">
+          <div className="text-sm text-red-600">
+            ⚠️ Local model server not available. Please start the local model server first by running <code className="bg-red-100 px-1 rounded">./start_local_models.sh</code>
           </div>
-        ) : (
-          <>
-            {/* Test Completion Summary */}
-            {testCompleted && testResults.length > 0 && (
-              <div className="p-4 border-b border-app-border bg-green-50">
-                <div className="text-center">
-                  <h3 className="text-xl font-bold text-green-800 mb-2">
-                    Test Completed!
-                  </h3>
-                  <div className="text-3xl font-bold text-green-600 mb-2">
-                    {Math.round((getTestStats().correct / getTestStats().total) * 100)}% Accuracy
-                  </div>
-                  <div className="text-sm text-green-700 mb-3">
-                    {getTestStats().correct} correct out of {getTestStats().total} questions
-                  </div>
-                  <div className="flex justify-center space-x-2">
-                    <button
-                      onClick={startTesting}
-                      className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
-                    >
-                      Retest Same Dataset
-                    </button>
-                    <button
-                      onClick={retestWithNewDataset}
-                      className="px-4 py-2 border border-green-600 text-green-600 rounded hover:bg-green-50 transition-colors"
-                    >
-                      Choose Different Dataset
-                    </button>
-                  </div>
+        </div>
+      )}
+
+      {!getApiKey() && !isRagAgent(agentConfig) && !requiresLocalModelServer() && (
+        <div className="p-4 bg-red-50 border-b border-red-200">
+          <div className="text-sm text-red-600">
+            ⚠️ No Gemini API key found in agent configuration. Please configure the agent first.
+          </div>
+        </div>
+      )}
+
+      {/* Error Display */}
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-6">
+        {/* Dataset Selection */}
+        <div>
+          <h4 className="text-md font-medium text-app-text mb-3">Select Dataset</h4>
+          <div className="space-y-2">
+            {datasets.map((dataset) => (
+              <button
+                key={dataset.id}
+                onClick={() => {
+                  setSelectedDataset(dataset);
+                  setQuestions(dataset.questions || []);
+                  setTestResults([]);
+                }}
+                className={`w-full text-left p-3 border rounded-lg transition-colors ${
+                  selectedDataset?.id === dataset.id
+                    ? 'border-primary bg-primary/5'
+                    : 'border-app-border hover:border-primary/50'
+                }`}
+              >
+                <div className="font-medium text-app-text">{dataset.name}</div>
+                <div className="text-sm text-app-text-subtle">
+                  {dataset.type} • {dataset.total_questions} questions
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Test Controls */}
+        {selectedDataset && (
+          <div>
+            <div className="flex items-center space-x-3 mb-4">
+              <button
+                onClick={runTest}
+                disabled={
+                  !selectedDataset ||
+                  isRunning ||
+                  (!getApiKey() && !isRagAgent(agentConfig)) ||
+                  (requiresLocalModelServer() && !isLocalModelServerAvailable)
+                }
+                className={`w-full py-3 px-4 rounded-lg font-medium transition-colors ${
+                  !selectedDataset ||
+                  isRunning ||
+                  (!getApiKey() && !isRagAgent(agentConfig)) ||
+                  (requiresLocalModelServer() && !isLocalModelServerAvailable)
+                    ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                    : 'bg-primary text-white hover:bg-primary-hover'
+                }`}
+              >
+                <div className="flex items-center justify-center space-x-2">
+                  <Play size={16} />
+                  <span>{isRunning ? 'Running Test...' : 'Start Test'}</span>
+                </div>
+              </button>
+              
+              <button
+                onClick={resetTest}
+                disabled={isRunning}
+                className="px-4 py-3 border border-app-border text-app-text rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <RotateCcw size={16} />
+              </button>
+            </div>
+
+            {/* Progress */}
+            {isRunning && currentTestIndex !== null && (
+              <div className="mb-4">
+                <div className="flex justify-between text-sm text-app-text-subtle mb-1">
+                  <span>Testing question {currentTestIndex + 1} of {questions.length}</span>
+                  <span>{Math.round(((currentTestIndex + 1) / questions.length) * 100)}%</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className="bg-primary h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${((currentTestIndex + 1) / questions.length) * 100}%` }}
+                  ></div>
                 </div>
               </div>
             )}
 
-            {/* Selected Dataset Info */}
-            <div className="p-4 border-b border-app-border">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="font-medium text-app-text">{selectedDataset.name}</h4>
-                <button
-                  onClick={() => setSelectedDataset(null)}
-                  className="text-sm text-app-text-subtle hover:text-app-text"
-                >
-                  Change Dataset
-                </button>
-              </div>
-              <p className="text-sm text-app-text-subtle">
-                {selectedDataset.type} • {questions.length} questions
-              </p>
-            </div>
-
-            {/* Test Controls */}
-            <div className="p-4 border-b border-app-border">
-              <div className="flex items-center space-x-2 mb-4">
-                {!isRunning && !isPaused ? (
-                  <button
-                    onClick={startTesting}
-                    disabled={!canAgentFunction()}
-                    className="flex items-center space-x-2 px-3 py-2 bg-primary text-white rounded hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Play size={16} />
-                    <span>Start Test</span>
-                  </button>
-                ) : isPaused ? (
-                  <button
-                    onClick={resumeTesting}
-                    disabled={!canAgentFunction()}
-                    className="flex items-center space-x-2 px-3 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Play size={16} />
-                    <span>Resume Test</span>
-                  </button>
-                ) : (
-                  <button
-                    onClick={pauseTesting}
-                    className="flex items-center space-x-2 px-3 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
-                  >
-                    <Pause size={16} />
-                    <span>Pause</span>
-                  </button>
-                )}
-                
-                <button
-                  onClick={resetTesting}
-                  className="flex items-center space-x-2 px-3 py-2 border border-app-border text-app-text rounded hover:bg-gray-50"
-                >
-                  <RotateCcw size={16} />
-                  <span>Reset</span>
-                </button>
-              </div>
-
-              {!getApiKey() && !isRagAgent(agentConfig) && !isWeatherAgent() && !isSearchAgent() && (
-                <div className="text-sm text-red-600 bg-red-50 p-2 rounded">
-                  ⚠️ No Gemini API key found in agent configuration. Please configure the agent first.
-                </div>
-              )}
-
-              {isRagAgent(agentConfig) && !getApiKey() && (
-                <div className="text-sm text-red-600 bg-red-50 p-2 rounded">
-                  ⚠️ No HuggingFace token found in agent configuration. Please configure the agent first.
-                </div>
-              )}
-
-              {isWeatherAgent() && !hasWeatherCapability() && (
-                <div className="text-sm text-red-600 bg-red-50 p-2 rounded">
-                  ⚠️ No OpenWeather API key found in agent configuration. Please configure the agent first.
-                </div>
-              )}
-
-              {isSearchAgent() && !hasSearchCapability() && (
-                <div className="text-sm text-red-600 bg-red-50 p-2 rounded">
-                  ⚠️ No SerpAPI key found in agent configuration. Please configure the agent first.
-                </div>
-              )}
-
-              {isPaused && (
-                <div className="text-sm text-amber-600 bg-amber-50 p-2 rounded">
-                  ⏸️ Test paused at question {testResults.length} of {questions.length}. Click "Resume Test" to continue.
-                </div>
-              )}
-
-              {error && (
-                <div className="text-sm text-red-600 bg-red-50 p-2 rounded">
-                  Error: {error}
-                </div>
-              )}
-            </div>
-
-            {/* Progress and Stats */}
+            {/* Test Statistics */}
             {testResults.length > 0 && (
-              <div className="p-4 border-b border-app-border">
-                <div className="mb-2">
-                  <div className="flex justify-between text-sm text-app-text-subtle mb-1">
-                    <span>Progress</span>
-                    <span>{testResults.length} / {questions.length}</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="bg-primary h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${(testResults.length / questions.length) * 100}%` }}
-                    ></div>
-                  </div>
-                </div>
-
-                {/* Stats */}
-                <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div className="bg-green-50 p-3 rounded-lg">
                   <div className="flex items-center space-x-2">
                     <CheckCircle size={16} className="text-green-500" />
-                    <span>Correct: {getTestStats().correct}</span>
+                    <span className="text-sm font-medium text-green-700">Correct</span>
                   </div>
+                  <div className="text-2xl font-bold text-green-600">{getTestStats().correct}</div>
+                </div>
+                
+                <div className="bg-red-50 p-3 rounded-lg">
                   <div className="flex items-center space-x-2">
                     <XCircle size={16} className="text-red-500" />
-                    <span>Incorrect: {getTestStats().incorrect}</span>
+                    <span className="text-sm font-medium text-red-700">Incorrect</span>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Clock size={16} className="text-blue-500" />
-                    <span>Avg: {Math.round(getTestStats().avgResponseTime)}ms</span>
-                  </div>
+                  <div className="text-2xl font-bold text-red-600">{getTestStats().incorrect}</div>
+                </div>
+                
+                <div className="bg-gray-50 p-3 rounded-lg">
                   <div className="flex items-center space-x-2">
                     <XCircle size={16} className="text-gray-500" />
-                    <span>Errors: {getTestStats().errors}</span>
+                    <span className="text-sm font-medium text-gray-700">Errors</span>
+                  </div>
+                  <div className="text-2xl font-bold text-gray-600">{getTestStats().errors}</div>
+                </div>
+                
+                <div className="bg-blue-50 p-3 rounded-lg">
+                  <div className="flex items-center space-x-2">
+                    <Clock size={16} className="text-blue-500" />
+                    <span className="text-sm font-medium text-blue-700">Avg Time</span>
+                  </div>
+                  <div className="text-2xl font-bold text-blue-600">
+                    {Math.round(getTestStats().avgResponseTime)}ms
                   </div>
                 </div>
               </div>
             )}
 
             {/* Test Results */}
-            <div className="p-4">
-            {testResults.length === 0 ? (
-              <p className="text-sm text-app-text-subtle text-center py-8">
-                No test results yet. Click "Start Test" to begin.
-              </p>
-            ) : (
-              <div className="space-y-4">
-                {testResults.map((result, index) => (
-                  <div key={result.questionId} className="border border-app-border rounded p-3">
-                    <div className="flex items-start justify-between mb-2">
-                      <span className="text-sm font-medium text-app-text">
-                        Question {index + 1}
-                      </span>
-                      <div className="flex items-center space-x-2">
-                        {result.isCorrect === true && (
-                          <CheckCircle size={16} className="text-green-500" />
-                        )}
-                        {result.isCorrect === false && (
-                          <XCircle size={16} className="text-red-500" />
-                        )}
-                        {result.isCorrect === null && (
-                          <XCircle size={16} className="text-gray-500" />
-                        )}
-                        <span className="text-xs text-app-text-subtle">
-                          {result.responseTime}ms
+            {testResults.length > 0 && (
+              <div>
+                <h4 className="text-md font-medium text-app-text mb-3">Test Results</h4>
+                <div className="space-y-3">
+                  {testResults.map((result, index) => (
+                    <div key={result.questionId} className="border border-app-border rounded-lg p-4">
+                      <div className="flex items-start justify-between mb-2">
+                        <span className="text-sm font-medium text-app-text">
+                          Question {index + 1}
                         </span>
+                        <div className="flex items-center space-x-2">
+                          {result.isCorrect === true && (
+                            <CheckCircle size={16} className="text-green-500" />
+                          )}
+                          {result.isCorrect === false && (
+                            <XCircle size={16} className="text-red-500" />
+                          )}
+                          {result.isCorrect === null && (
+                            <XCircle size={16} className="text-gray-500" />
+                          )}
+                          <span className="text-xs text-app-text-subtle">
+                            {result.responseTime}ms
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                    
-                    <div className="text-sm text-app-text mb-2">
-                      <strong>Q:</strong> {result.question}
-                    </div>
-
-                    {/* Show options for MCQ */}
-                    {result.options && result.options.length > 0 && (
-                      <div className="text-sm text-gray-600 mb-2">
-                        <strong>Options:</strong>
-                        <ul className="ml-4 mt-1">
-                          {result.options.map((option, idx) => {
-                            const isCorrectAnswer = option === result.expectedAnswer;
-                            const isSelectedWrongAnswer = option === result.selectedAnswer && option !== result.expectedAnswer;
-
-                            return (
-                              <li key={idx} className={`${
-                                isCorrectAnswer ? 'text-green-600 font-medium' : ''
-                              } ${
-                                isSelectedWrongAnswer ? 'text-red-600 font-medium bg-red-50 px-2 py-1 rounded' : ''
-                              }`}>
-                                {String.fromCharCode(65 + idx)}. {option}
-                                {isCorrectAnswer && ' ✓'}
-                                {isSelectedWrongAnswer && ' ✗'}
-                              </li>
-                            );
-                          })}
-                        </ul>
+                      
+                      <div className="text-sm text-app-text mb-2">
+                        <strong>Q:</strong> {result.question}
                       </div>
-                    )}
-
-                    <div className="text-sm space-y-1">
-                      <div className="text-green-700">
-                        <strong>Expected:</strong> {result.expectedAnswer}
-                      </div>
-                      {result.selectedAnswer && result.selectedAnswer !== result.geminiResponse && (
+                      
+                      <div className="text-sm space-y-1">
+                        <div className="text-green-700">
+                          <strong>Expected:</strong> {result.expectedAnswer}
+                        </div>
                         <div className="text-blue-700">
-                          <strong>Selected:</strong> {result.selectedAnswer}
+                          <strong>Response:</strong> {result.geminiResponse || 'No response'}
                         </div>
-                      )}
-                      <div className="text-blue-700">
-                        <strong>Full Response:</strong> {result.geminiResponse || 'No response'}
+                        {result.error && (
+                          <div className="text-red-600">
+                            <strong>Error:</strong> {result.error}
+                          </div>
+                        )}
                       </div>
-                      {result.error && (
-                        <div className="text-red-600">
-                          <strong>Error:</strong> {result.error}
-                        </div>
-                      )}
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             )}
-            </div>
-          </>
+          </div>
         )}
       </div>
     </div>
