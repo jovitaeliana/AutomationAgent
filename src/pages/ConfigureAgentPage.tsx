@@ -856,15 +856,16 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
         </SectionCard>
 
         {selectedPreset && (
-          <SectionCard title="Agent Configuration" data-section="agent-configuration" data-tour="preset-config">
+          <SectionCard title="Agent Configuration" className="" data-tour="preset-config">
             <div className="space-y-6">
-              <InputField 
-                label="Agent Name" 
-                placeholder="Enter agent name" 
-                value={agentName} 
-                onChange={setAgentName} 
-                data-tour="agent-name"
-              />
+              <div data-tour="agent-name">
+                <InputField 
+                  label="Agent Name" 
+                  placeholder="Enter agent name" 
+                  value={agentName} 
+                  onChange={setAgentName}
+                />
+              </div>
               <TextareaField 
                 label="Description" 
                 placeholder="Describe what this agent does" 
@@ -872,13 +873,15 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
                 onChange={setDescription} 
               />
               <hr className="border-app-border" />
-              {renderPresetFields()}
+              <div data-tour="preset-config-fields">
+                {renderPresetFields()}
+              </div>
             </div>
           </SectionCard>
         )}
 
         {selectedPreset && (
-          <SectionCard title="Limitations & Instructions" data-tour="system-prompt">
+          <SectionCard title="Limitations & Instructions" className="" data-tour="system-prompt">
             <div className="space-y-6">
               <TextareaField
                 label="System Prompt"
@@ -888,7 +891,7 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
                 onChange={setSystemPrompt}
               />
               <TextareaField
-                label="Limitations"
+                label="Agent Name" 
                 placeholder="Specify any limitations or restrictions..."
                 value={limitations}
                 onChange={setLimitations}
@@ -899,7 +902,21 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
 
         {/* Save Configuration Button at Bottom */}
         <div className="flex justify-center pt-8">
-          <button 
+          <div data-tour="save-config">
+            <button 
+              type="button"
+              onClick={handleSaveConfiguration}
+              disabled={isSaving || !selectedPreset}
+              className={`font-semibold py-3 px-8 rounded-lg transition-colors text-lg ${
+                isSaving || !selectedPreset
+                  ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
+                  : 'bg-primary text-white hover:bg-primary-hover shadow-lg hover:shadow-xl'
+              }`}
+            >
+              {isSaving ? 'Saving Configuration...' : 'Save Configuration'}
+            </button>
+          </div>
+        }
             type="button"
             onClick={handleSaveConfiguration}
             disabled={isSaving || !selectedPreset}
