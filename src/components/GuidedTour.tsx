@@ -44,7 +44,6 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, steps }) => {
     }
   }, [isOpen]);
 
-  const nextStep = () => {
   // Update element rect on window resize or scroll
   useEffect(() => {
     if (!highlightedElement) return;
@@ -64,6 +63,7 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, steps }) => {
     };
   }, [highlightedElement]);
 
+  const nextStep = () => {
     if (currentStep < steps.length - 1) {
       // Execute action if defined for current step
       if (steps[currentStep]?.action) {
