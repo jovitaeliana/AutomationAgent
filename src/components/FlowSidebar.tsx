@@ -49,6 +49,15 @@ interface FlowSidebarProps {
 const FlowSidebar: React.FC<FlowSidebarProps> = ({ nodes, isLoading, error }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
+  // Helper function to get category tour attribute
+  const getCategoryTourAttribute = (category: string) => {
+    const lowerCategory = category.toLowerCase();
+    if (lowerCategory.includes('trigger')) return 'triggers-category';
+    if (lowerCategory.includes('rag') || lowerCategory.includes('model')) return 'rag-models-category';
+    if (lowerCategory.includes('automation')) return 'agents-category';
+    return undefined;
+  };
+
   return (
     <aside className={`flex-shrink-0 flex flex-col bg-white transition-all duration-300 ease-in-out ${isCollapsed ? 'w-20' : 'w-80'}`}>
       {isCollapsed ? (
@@ -94,7 +103,7 @@ const FlowSidebar: React.FC<FlowSidebarProps> = ({ nodes, isLoading, error }) =>
               {error && <p className="text-red-500">Error: {error}</p>}
               {!isLoading && !error && (
                 nodes.map(nodeCategory => (
-                  <div key={nodeCategory.category}>
+                  <div key={nodeCategory.category} data-tour={getCategoryTourAttribute(nodeCategory.category)}>
                     <h3 className="text-sm font-semibold text-app-text mb-2 uppercase tracking-wider">{nodeCategory.category}</h3>
                     <div className="space-y-2">
                       {nodeCategory.items.map(item => <DraggableNodeItem key={item.id} item={item} />)}

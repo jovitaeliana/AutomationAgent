@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useDrop } from 'react-dnd';
+import { HelpCircle } from 'lucide-react';
 import FlowSidebar, { ItemTypes } from '../components/FlowSidebar';
 import type { FlowNodeData } from '../components/FlowNode';
 import ConfigurationPanel from '../components/ConfigurationPanel';
@@ -12,6 +13,7 @@ import AgentSelectionModal from '../components/AgentSelectionModal';
 import DatasetTestingPanel from '../components/DatasetTestingPanel';
 import KnowledgeBaseUploadModal from '../components/KnowledgeBaseUploadModal';
 import GeminiChatPanel from '../components/AgentChatPanel';
+import GuidedTour, { type TourStep } from '../components/GuidedTour';
 import { flowService, availableNodesService, nodeConfigService, knowledgeBaseService, agentKnowledgeBaseService } from '../services/api';
 import type { Dataset, Agent } from '../lib/supabase';
 
@@ -84,6 +86,78 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
   const [isDraggingConnection, setIsDraggingConnection] = useState(false);
   const [isTestPanelCollapsed, setIsTestPanelCollapsed] = useState(false);
   const [testPanelWidth, setTestPanelWidth] = useState(400);
+
+  // Guided tour state
+  const [showTour, setShowTour] = useState(false);
+
+  const flowCreationTourSteps: TourStep[] = [
+    {
+      id: 'welcome',
+      title: 'Welcome to Flow Builder! 🔧',
+      content: 'This tour will guide you through creating visual workflows by connecting different components together.',
+      position: 'center'
+    },
+    {
+      id: 'flow-components',
+      title: 'Step 1: Flow Components Sidebar',
+      content: 'This sidebar contains all available components you can drag into your flow. Components are organized into categories: Automations, RAG Models, and Triggers.',
+      target: '[data-tour="flow-components"]',
+      position: 'right'
+    },
+    {
+      id: 'triggers-category',
+      title: 'Triggers Category',
+      content: 'Triggers are entry points for your flow. They define how your automation starts - like API webhooks, scheduled events, or manual triggers.',
+      target: '[data-tour="triggers-category"]',
+      position: 'right'
+    },
+    {
+      id: 'rag-models-category',
+      title: 'RAG Models Category',
+      content: 'RAG (Retrieval-Augmented Generation) models help your agents answer questions using uploaded documents and knowledge bases.',
+      target: '[data-tour="rag-models-category"]',
+      position: 'right'
+    },
+    {
+      id: 'agents-category',
+      title: 'Agents Category',
+      content: 'Agents are the core processing units that handle tasks like weather queries, web searches, or custom AI interactions.',
+      target: '[data-tour="agents-category"]',
+      position: 'right'
+    },
+    {
+      id: 'canvas-area',
+      title: 'Step 2: Canvas Area',
+      content: 'This is your workspace where you build flows. Drag components from the sidebar here, connect them with lines, and configure each component.',
+      target: '[data-tour="canvas-area"]',
+      position: 'left'
+    },
+    {
+      id: 'canvas-controls',
+      title: 'Canvas Controls',
+      content: 'Use these controls to navigate your flow: zoom in/out with Ctrl+scroll, pan with Alt+drag, reset view, or fit all nodes to screen.',
+      target: '[data-tour="canvas-controls"]',
+      position: 'bottom'
+    },
+    {
+      id: 'drag-drop-instructions',
+      title: 'Step 3: How to Build Flows',
+      content: 'Drag components from the sidebar to the canvas. Click and drag from the connection ports (small circles) on nodes to create connections between them.',
+      position: 'center'
+    },
+    {
+      id: 'node-actions',
+      title: 'Step 4: Node Actions',
+      content: 'Each node has actions: Configure to set up the component, Test to try it out (for agents), and a delete button to remove it.',
+      position: 'center'
+    },
+    {
+      id: 'complete',
+      title: 'You\'re Ready to Build! 🚀',
+      content: 'Start by dragging a Trigger from the sidebar, then add agents and knowledge bases. Connect them together to create your automation flow.',
+      position: 'center'
+    }
+  ];
 
   // Create a debounced save function for positions
   const debouncedSavePosition = useCallback(
@@ -696,8 +770,17 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
 
   return (
     <div className="h-screen flex overflow-hidden bg-gradient-to-br from-app-bg-highlight to-app-bg-content">
+      {/* Help/Tour Button */}
+      <button
+        onClick={() => setShowTour(true)}
+        className="fixed bottom-6 right-6 bg-blue-600 text-white p-3 rounded-full shadow-lg hover:bg-blue-700 transition-colors z-30"
+        title="Take a guided tour"
+      >
+        <HelpCircle size={24} />
+      </button>
+
       {/* Left Panel - FlowSidebar */}
-      <div className="bg-white border-r border-app-border flex-shrink-0 relative">
+      <div className="bg-white border-r border-app-border flex-shrink-0 relative" data-tour="flow-components">
         <FlowSidebar nodes={availableNodes} isLoading={isLoading} error={error} />
       </div>
 
@@ -705,7 +788,7 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
         <header className="bg-app-bg-content border-b border-app-border px-6 py-4 flex items-center justify-between">
           <h1 className="text-2xl font-bold text-app-text">Flow Builder</h1>
           <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2 text-sm text-app-text-subtle">
+            <div className="flex items-center space-x-2 text-sm text-app-text-subtle" data-tour="canvas-controls">
               <span>Zoom: {Math.round(zoom * 100)}%</span>
               <button
                 onClick={resetView}
@@ -741,6 +824,7 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
           <div 
             ref={canvasRef} 
             className="flex-1 relative overflow-hidden select-none" 
+            data-tour="canvas-area"
             style={{
               backgroundImage: `radial-gradient(circle, rgba(0, 0, 0, 0.2) 1px, transparent 1px)`,
               backgroundSize: `${20 * zoom}px ${20 * zoom}px`,
@@ -844,9 +928,11 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
             </div>
             
             {/* Zoom/Pan Instructions */}
-            <div className="absolute top-4 left-4 bg-black bg-opacity-70 text-white text-xs px-3 py-2 rounded-lg">
+            <div className="absolute top-4 left-4 bg-black bg-opacity-70 text-white text-xs px-3 py-2 rounded-lg" data-tour="drag-drop-instructions">
               <div>Ctrl/Cmd + Scroll: Zoom</div>
               <div>Alt + Drag or Middle Click: Pan</div>
+              <div>Drag from sidebar to add nodes</div>
+              <div>Drag between ports to connect</div>
             </div>
             
             {/* Full-Screen Delete Loading Overlay */}
@@ -1057,6 +1143,13 @@ const AgentCreationPage: React.FC<AgentCreationPageProps> = ({ onNavigate }) => 
         onUpload={handleKnowledgeBaseUpload}
         onSelectExisting={handleKnowledgeBaseSelect}
         isUploading={isKnowledgeBaseUploading}
+      />
+
+      {/* Guided Tour */}
+      <GuidedTour
+        isOpen={showTour}
+        onClose={() => setShowTour(false)}
+        steps={flowCreationTourSteps}
       />
     </div>
   );
