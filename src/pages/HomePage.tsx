@@ -4,7 +4,7 @@ import PageHeader from '../components/PageHeader';
 import SelectionCard from '../components/SelectionCard';
 import { AutomationIcon, RagIcon, FlowIcon, TestIcon } from '../components/Icons';
 import RecentProjects from '../components/RecentProjects';
-import GuidedTour from '../components/GuidedTour';
+import GuidedTour, { type TourStep } from '../components/GuidedTour';
 
 // Define the page names type
 type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'flow-creation' | 'deployment-status';
@@ -15,6 +15,49 @@ interface HomePageProps {
 
 const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
   const [showTour, setShowTour] = useState(false);
+
+  const homePageTourSteps: TourStep[] = [
+    {
+      id: 'welcome',
+      title: 'Welcome to AutomationAgent! 🎉',
+      content: 'Let\'s take a quick tour to get you started with creating and testing AI agents.',
+      position: 'center'
+    },
+    {
+      id: 'create-agent',
+      title: 'Step 1: Create an Agent',
+      content: 'Start by creating your first AI agent. Click here to configure an agent with specific capabilities like weather, search, or custom RAG.',
+      target: '[data-tour="create-agent"]',
+      position: 'bottom'
+    },
+    {
+      id: 'create-dataset',
+      title: 'Step 2: Create Test Dataset (Optional)',
+      content: 'Upload test datasets to evaluate your agent\'s performance. This helps ensure your agent responds correctly to various questions.',
+      target: '[data-tour="create-dataset"]',
+      position: 'bottom'
+    },
+    {
+      id: 'create-flow',
+      title: 'Step 3: Create a Flow',
+      content: 'Build flows to connect your agents with datasets and knowledge bases. This is where you design your automation workflow.',
+      target: '[data-tour="create-flow"]',
+      position: 'bottom'
+    },
+    {
+      id: 'recent-projects',
+      title: 'Step 4: Access Your Work',
+      content: 'Find all your created agents, datasets, and flows in the Recent Projects section. You can quickly access and modify your previous work.',
+      target: '[data-tour="recent-projects"]',
+      position: 'top'
+    },
+    {
+      id: 'complete',
+      title: 'You\'re All Set! 🚀',
+      content: 'You now know the basics of AutomationAgent. Start by creating your first agent and explore the powerful features available.',
+      position: 'center'
+    }
+  ];
 
   useEffect(() => {
     // Check if user has completed the tour
@@ -83,7 +126,7 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
       <GuidedTour
         isOpen={showTour}
         onClose={() => setShowTour(false)}
-        onNavigate={onNavigate}
+        steps={homePageTourSteps}
       />
     </div>
   );

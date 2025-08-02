@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { HelpCircle } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import SectionCard from '../components/SectionCard';
 import PresetCard from '../components/PresetCard';
@@ -7,6 +8,7 @@ import { WeatherConfigFields, CustomConfigFields } from '../components/PresetCon
 import { BackButtonIcon } from '../components/Icons';
 import { presetService, agentService } from '../services/api';
 import { useToast } from '../components/ToastContainer';
+import GuidedTour, { type TourStep } from '../components/GuidedTour';
 import type { Preset, Agent } from '../lib/supabase';
 
 type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'flow-creation' | 'deployment-status';
@@ -345,6 +347,9 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
   // Toast notifications
   const { showSuccess, showError } = useToast();
 
+  // Guided tour state
+  const [showTour, setShowTour] = useState(false);
+
   // Helper function to read file content
   const readFileContent = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -423,6 +428,57 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
 
   const [agentType, setAgentType] = useState('LLM Agent');
   const [configJson, setConfigJson] = useState('');
+
+  const configureAgentTourSteps: TourStep[] = [
+    {
+      id: 'welcome',
+      title: 'Welcome to Agent Configuration! 🤖',
+      content: 'This tour will guide you through creating and configuring your AI agent step by step.',
+      position: 'center'
+    },
+    {
+      id: 'existing-agents',
+      title: 'Step 1: View Existing Agents',
+      content: 'Here you can see all your previously created agents. You can delete them or use them as reference for new configurations.',
+      target: '[data-tour="existing-agents"]',
+      position: 'bottom'
+    },
+    {
+      id: 'preset-selection',
+      title: 'Step 2: Choose a Preset',
+      content: 'Select from pre-configured agent types: Weather API for weather data, Google Search for web searches, or Custom for your own configuration.',
+      target: '[data-tour="preset-selection"]',
+      position: 'bottom'
+    },
+    {
+      id: 'agent-name',
+      title: 'Step 3: Name Your Agent',
+      content: 'Give your agent a descriptive name that reflects its purpose and functionality.',
+      target: '[data-tour="agent-name"]',
+      position: 'bottom'
+    },
+    {
+      id: 'preset-config',
+      title: 'Step 4: Configure Settings',
+      content: 'Configure the specific settings for your chosen preset. This includes API keys, parameters, and custom instructions.',
+      target: '[data-tour="preset-config"]',
+      position: 'top'
+    },
+    {
+      id: 'system-prompt',
+      title: 'Step 5: Set Instructions & Limitations',
+      content: 'Define how your agent should behave with system prompts and set any limitations on what it can or cannot do.',
+      target: '[data-tour="system-prompt"]',
+      position: 'top'
+    },
+    {
+      id: 'save-config',
+      title: 'Step 6: Save Your Configuration',
+      content: 'Once everything is configured, save your agent. It will be available for use in flows and testing.',
+      target: '[data-tour="save-config"]',
+      position: 'top'
+    }
+  ];
 
   // useEffect to fetch presets and agents when the component mounts
   useEffect(() => {
@@ -703,6 +759,15 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-app-bg-highlight to-app-bg text-app-text font-sans">
+      {/* Help/Tour Button */}
+      <button
+        onClick={() => setShowTour(true)}
+        className="fixed bottom-6 right-6 bg-blue-600 text-white p-3 rounded-full shadow-lg hover:bg-blue-700 transition-colors z-30"
+        title="Take a guided tour"
+      >
+        <HelpCircle size={24} />
+      </button>
+
       <PageHeader title="Configure Agent" subtitle="Set up and customise your automation agent">
         <div className="flex items-center space-x-4">
           <button 
@@ -730,7 +795,7 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
         )}
 
         {/* Existing Agents Section */}
-        <SectionCard title="Existing Agents">
+        <SectionCard title="Existing Agents" data-tour="existing-agents">
           {isLoading && <p>Loading agents...</p>}
           {error && <p className="text-red-500">Error: {error}</p>}
           {!isLoading && !error && (
@@ -769,7 +834,7 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
           )}
         </SectionCard>
 
-        <SectionCard title="Quick Setup Presets">
+        <SectionCard title="Quick Setup Presets" data-tour="preset-selection">
           {isLoading && <p>Loading presets...</p>}
           {error && <p className="text-red-500">Error: {error}</p>}
           {!isLoading && !error && (
@@ -791,13 +856,14 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
         </SectionCard>
 
         {selectedPreset && (
-          <SectionCard title="Agent Configuration" data-section="agent-configuration">
+          <SectionCard title="Agent Configuration" data-section="agent-configuration" data-tour="preset-config">
             <div className="space-y-6">
               <InputField 
                 label="Agent Name" 
                 placeholder="Enter agent name" 
                 value={agentName} 
                 onChange={setAgentName} 
+                data-tour="agent-name"
               />
               <TextareaField 
                 label="Description" 
@@ -812,7 +878,7 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
         )}
 
         {selectedPreset && (
-          <SectionCard title="Limitations & Instructions">
+          <SectionCard title="Limitations & Instructions" data-tour="system-prompt">
             <div className="space-y-6">
               <TextareaField
                 label="System Prompt"
@@ -837,6 +903,7 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
             type="button"
             onClick={handleSaveConfiguration}
             disabled={isSaving || !selectedPreset}
+            data-tour="save-config"
             className={`font-semibold py-3 px-8 rounded-lg transition-colors text-lg ${
               isSaving || !selectedPreset
                 ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
@@ -847,6 +914,13 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
           </button>
         </div>
       </main> 
+
+      {/* Guided Tour */}
+      <GuidedTour
+        isOpen={showTour}
+        onClose={() => setShowTour(false)}
+        steps={configureAgentTourSteps}
+      />
     </div>
   );
 };

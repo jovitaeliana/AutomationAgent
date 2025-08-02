@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, ArrowRight, ArrowLeft } from 'lucide-react';
 
-interface TourStep {
+export interface TourStep {
   id: string;
   title: string;
   content: string;
@@ -10,64 +10,19 @@ interface TourStep {
   action?: () => void;
 }
 
-type PageName = 'home' | 'configure' | 'choice' | 'dataset-testing' | 'upload-dataset' | 'flow-creation' | 'deployment-status';
-
 interface GuidedTourProps {
   isOpen: boolean;
   onClose: () => void;
-  onNavigate: (page: PageName) => void;
+  steps: TourStep[];
 }
 
-const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, onNavigate }) => {
+const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, steps }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [highlightedElement, setHighlightedElement] = useState<HTMLElement | null>(null);
 
-  const tourSteps: TourStep[] = [
-    {
-      id: 'welcome',
-      title: 'Welcome to AutomationAgent! 🎉',
-      content: 'Let\'s take a quick tour to get you started with creating and testing AI agents.',
-      position: 'center'
-    },
-    {
-      id: 'create-agent',
-      title: 'Step 1: Create an Agent',
-      content: 'Start by creating your first AI agent. Click here to configure an agent with specific capabilities like weather, search, or custom RAG.',
-      target: '[data-tour="create-agent"]',
-      position: 'bottom'
-    },
-    {
-      id: 'create-dataset',
-      title: 'Step 2: Create Test Dataset (Optional)',
-      content: 'Upload test datasets to evaluate your agent\'s performance. This helps ensure your agent responds correctly to various questions.',
-      target: '[data-tour="create-dataset"]',
-      position: 'bottom'
-    },
-    {
-      id: 'create-flow',
-      title: 'Step 3: Create a Flow',
-      content: 'Build flows to connect your agents with datasets and knowledge bases. This is where you design your automation workflow.',
-      target: '[data-tour="create-flow"]',
-      position: 'bottom'
-    },
-    {
-      id: 'recent-projects',
-      title: 'Step 4: Access Your Work',
-      content: 'Find all your created agents, datasets, and flows in the Recent Projects section. You can quickly access and modify your previous work.',
-      target: '[data-tour="recent-projects"]',
-      position: 'top'
-    },
-    {
-      id: 'complete',
-      title: 'You\'re All Set! 🚀',
-      content: 'You now know the basics of AutomationAgent. Start by creating your first agent and explore the powerful features available.',
-      position: 'center'
-    }
-  ];
-
   useEffect(() => {
-    if (isOpen && tourSteps[currentStep]?.target) {
-      const element = document.querySelector(tourSteps[currentStep].target!) as HTMLElement;
+    if (isOpen && steps[currentStep]?.target) {
+      const element = document.querySelector(steps[currentStep].target!) as HTMLElement;
       if (element) {
         setHighlightedElement(element);
         element.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -75,7 +30,7 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, onNavigate }) 
     } else {
       setHighlightedElement(null);
     }
-  }, [currentStep, isOpen]);
+  }, [currentStep, isOpen, steps]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -85,7 +40,11 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, onNavigate }) 
   }, [isOpen]);
 
   const nextStep = () => {
-    if (currentStep < tourSteps.length - 1) {
+    if (currentStep < steps.length - 1) {
+      // Execute action if defined for current step
+      if (steps[currentStep]?.action) {
+        steps[currentStep].action!();
+      }
       setCurrentStep(currentStep + 1);
     }
   };
@@ -108,8 +67,8 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, onNavigate }) 
 
   if (!isOpen) return null;
 
-  const currentTourStep = tourSteps[currentStep];
-  const isLastStep = currentStep === tourSteps.length - 1;
+  const currentTourStep = steps[currentStep];
+  const isLastStep = currentStep === steps.length - 1;
   const isFirstStep = currentStep === 0;
 
   return (
@@ -177,7 +136,7 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, onNavigate }) 
         {/* Step indicator */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex space-x-1">
-            {tourSteps.map((_, index) => (
+            {steps.map((_, index) => (
               <div
                 key={index}
                 className={`w-2 h-2 rounded-full ${
@@ -187,7 +146,7 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, onNavigate }) 
             ))}
           </div>
           <span className="text-xs text-gray-500">
-            {currentStep + 1} of {tourSteps.length}
+            {currentStep + 1} of {steps.length}
           </span>
         </div>
 
