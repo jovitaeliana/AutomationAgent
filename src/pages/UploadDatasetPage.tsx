@@ -535,6 +535,13 @@ const UploadDatasetPage: React.FC<UploadDatasetPageProps> = ({ onNavigate }) => 
           </button>
         </div>
       </div>
+
+      {/* Guided Tour */}
+      <GuidedTour
+        isOpen={showTour}
+        onClose={() => setShowTour(false)}
+        steps={uploadDatasetTourSteps}
+      />
     </div>
   );
 };
