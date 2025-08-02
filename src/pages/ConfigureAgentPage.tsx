@@ -916,19 +916,6 @@ const ConfigureAgentPage: React.FC<ConfigureAgentPageProps> = ({ onNavigate }) =
               {isSaving ? 'Saving Configuration...' : 'Save Configuration'}
             </button>
           </div>
-        }
-            type="button"
-            onClick={handleSaveConfiguration}
-            disabled={isSaving || !selectedPreset}
-            data-tour="save-config"
-            className={`font-semibold py-3 px-8 rounded-lg transition-colors text-lg ${
-              isSaving || !selectedPreset
-                ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
-                : 'bg-primary text-white hover:bg-primary-hover shadow-lg hover:shadow-xl'
-            }`}
-          >
-            {isSaving ? 'Saving Configuration...' : 'Save Configuration'}
-          </button>
         </div>
       </main> 
 
