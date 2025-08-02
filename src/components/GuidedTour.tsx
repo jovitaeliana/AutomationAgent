@@ -28,12 +28,13 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, steps }) => {
         setHighlightedElement(element);
         setElementRect(element.getBoundingClientRect());
         element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
+      } else {
         console.warn(`Tour target not found: ${steps[currentStep].target}`);
+      }
     } else {
       setHighlightedElement(null);
-    }
       setElementRect(null);
+    }
   }, [currentStep, isOpen, steps]);
 
   useEffect(() => {
@@ -200,10 +201,9 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, steps }) => {
           </button>
 
           <button
-          <div className="text-gray-600 mb-6 text-sm leading-relaxed">
-            className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 z-10"
-          </div>
-        </div>
+            onClick={skipTour}
+            className="text-gray-600 mb-6 text-sm leading-relaxed"
+          >
             Skip Tour
           </button>
 
@@ -214,6 +214,7 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, steps }) => {
             <span>{isLastStep ? 'Get Started' : 'Next'}</span>
             {!isLastStep && <ArrowRight size={16} />}
           </button>
+        </div>
         </div>
       </div>
 
